@@ -33,8 +33,13 @@ mkdir -p "$PROJECT_DIR/.claude/cache/artifact-index"
 echo "Initializing Artifact Index database..."
 if [ -f "$PROJECT_DIR/.claude/cache/artifact-index/context.db" ]; then
     echo "  ✓ Database already exists, skipping (brownfield project)"
-elif [ -f "$SCRIPT_DIR/scripts/artifact_schema.sql" ]; then
-    sqlite3 "$PROJECT_DIR/.claude/cache/artifact-index/context.db" < "$SCRIPT_DIR/scripts/artifact_schema.sql"
+elif [ -f "$SCRIPT_DIR/artifact_schema.sql" ]; then
+    # Schema is in same directory as this script (global install)
+    sqlite3 "$PROJECT_DIR/.claude/cache/artifact-index/context.db" < "$SCRIPT_DIR/artifact_schema.sql"
+    echo "  ✓ Database created at .claude/cache/artifact-index/context.db"
+elif [ -f "$SCRIPT_DIR/../scripts/artifact_schema.sql" ]; then
+    # Running from repo root
+    sqlite3 "$PROJECT_DIR/.claude/cache/artifact-index/context.db" < "$SCRIPT_DIR/../scripts/artifact_schema.sql"
     echo "  ✓ Database created at .claude/cache/artifact-index/context.db"
 else
     echo "  ⚠ Schema not found - database not created"

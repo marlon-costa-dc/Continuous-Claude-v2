@@ -99,6 +99,7 @@ mkdir -p "$GLOBAL_DIR/scripts"
 cp "$SCRIPT_DIR/scripts/"*.py "$GLOBAL_DIR/scripts/" 2>/dev/null || true
 cp "$SCRIPT_DIR/.claude/scripts/"*.sh "$GLOBAL_DIR/scripts/" 2>/dev/null || true
 cp "$SCRIPT_DIR/init-project.sh" "$GLOBAL_DIR/scripts/" 2>/dev/null || true
+cp "$SCRIPT_DIR/scripts/artifact_schema.sql" "$GLOBAL_DIR/scripts/" 2>/dev/null || true
 
 echo "Copying plugins..."
 mkdir -p "$GLOBAL_DIR/plugins"
