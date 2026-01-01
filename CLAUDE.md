@@ -247,6 +247,27 @@ Use the 3-layer token-efficient workflow:
 
 - `/mem-search` - Quick access to memory search workflow
 
+## Running Without API Keys
+
+All external services have local alternatives. This project can run 100% offline:
+
+| Paid Service | Local Alternative | Command/Tool |
+|--------------|-------------------|--------------|
+| **Braintrust** | claude-mem | MCP tools (see above) |
+| **RepoPrompt** | repomix | `repomix --style markdown` |
+| **Perplexity** | WebSearch | `WebSearch(query="...")` builtin |
+| **Firecrawl** | trafilatura | `uv run python scripts/web_scrape_local.py <url>` |
+| **Morph** | ripgrep | `Grep(pattern="...", path="...")` builtin |
+| **Nia** | Context7 | `mcp__context7__get-library-docs` |
+
+### Quick Start (Zero API Keys)
+
+1. Install dependencies: `uv sync`
+2. Start claude-mem worker: `systemctl --user start claude-mem-worker`
+3. Use builtin tools and scripts - all core features work locally
+
+See `.env.example` for the full list of optional API keys and their fallbacks.
+
 ## Refs
 - [Code Execution with MCP](https://www.anthropic.com/engineering/code-execution-with-mcp)
 - [MCP spec](https://modelcontextprotocol.io/)
