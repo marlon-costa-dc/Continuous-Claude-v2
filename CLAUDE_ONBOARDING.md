@@ -79,7 +79,7 @@ thoughts/             # Research, plans, handoffs (gitignored)
 - `/recall-reasoning` - Search past decisions
 
 ### MCP Tools (All Have Local Alternatives)
-- `/repoprompt` - Codemaps for token-efficient exploration → **Local: repomix**
+- `/codebase-explorer` - Codemaps for token-efficient exploration → **Uses: repomix**
 - `/morph-search` - Fast codebase search (20x grep) → **Local: Grep builtin**
 - `/nia-docs` - Library documentation lookup → **Local: Context7 MCP**
 - `/perplexity-search` - Web research → **Local: WebSearch builtin**

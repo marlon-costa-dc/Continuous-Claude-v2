@@ -83,7 +83,7 @@ Session continuity, token-efficient MCP execution, and agentic workflows for Cla
 │  ├──────────────────┤             │  │  ├──────────────────┤             │
 │  │ tdd-workflow     │ Red/Green   │  │  │ debug-agent      │ Debug       │
 │  ├──────────────────┤             │  │  ├──────────────────┤             │
-│  │ hook-developer   │ Hook ref    │  │  │ rp-explorer      │ Codebase    │
+│  │ hook-developer   │ Hook ref    │  │  │ codebase-explorer│ Codebase    │
 │  ├──────────────────┤             │  │  └──────────────────┘             │
 │  │ compound-learn   │ Make rules  │  │                                   │
 │  └──────────────────┘             │  │                                   │
@@ -432,15 +432,15 @@ This kit responds to natural language triggers. Say certain phrases and Claude a
 | Say This | What Happens |
 |----------|--------------|
 | "onboard", "get familiar", "analyze this project" | Runs **/onboard** skill - analyzes codebase, creates initial ledger |
-| "explore codebase", "understand the code", "what does this do" | Spawns **rp-explorer** for token-efficient exploration |
+| "explore codebase", "understand the code", "what does this do" | Spawns **codebase-explorer** for token-efficient exploration |
 
 **The `/onboard` skill** is designed for brownfield projects (existing codebases). It:
 
 1. **Checks prerequisites** - Verifies `thoughts/` structure exists (run `init-project.sh` first)
-2. **Analyzes codebase** - Uses RepoPrompt if available, falls back to bash commands:
-   - `rp-cli -e 'tree'` - Directory structure
-   - `rp-cli -e 'builder "understand the codebase"'` - AI-powered file selection
-   - `rp-cli -e 'structure .'` - Code signatures (token-efficient)
+2. **Analyzes codebase** - Uses Repomix for token-efficient exploration:
+   - `repomix --token-count-tree --style markdown` - Directory structure with token counts
+   - `repomix --compress --style xml` - Compressed code structure (~50% token reduction)
+   - Falls back to bash commands (find, ls) if Repomix unavailable
 3. **Detects tech stack** - Language, framework, database, testing, CI/CD
 4. **Asks your goal** - Feature work, bug fixes, refactoring, or learning
 5. **Creates continuity ledger** - At `thoughts/ledgers/CONTINUITY_CLAUDE-<project>.md`
@@ -484,20 +484,17 @@ claude
 
 | Say This | What Happens |
 |----------|--------------|
-| "brownfield", "existing codebase", "repoprompt" | Spawns **rp-explorer** - uses RepoPrompt for token-efficient exploration |
+| "brownfield", "existing codebase", "explore" | Spawns **codebase-explorer** - uses Repomix for token-efficient exploration |
 | "how does X work", "trace", "data flow", "deep dive" | Spawns **codebase-analyzer** for detailed analysis |
 | "find files", "where are", "which files handle" | Spawns **codebase-locator** (super grep/glob) |
 | "find examples", "similar pattern", "how do we do X" | Spawns **codebase-pattern-finder** |
 | "explore", "get familiar", "overview" | Spawns **explore** agent with configurable depth |
 
-**rp-explorer uses RepoPrompt tools** (requires Pro license - $14.99/mo or $349 lifetime):
-- **Context Builder** - Deep AI-powered exploration (async, 30s-5min)
-- **Codemaps** - Function/class signatures without full file content (10x fewer tokens)
-- **Slices** - Read specific line ranges, not whole files
-- **Search** - Pattern matching with context lines
-- **Workspaces** - Switch between projects
-
-*Free tier available with basic features (32k token limit, no MCP server)*
+**codebase-explorer uses Repomix** (free, works on Linux):
+- **Token count tree** - `repomix --token-count-tree --style markdown`
+- **Compressed output** - `repomix --compress --style xml` (~50% token reduction)
+- **Filtered exploration** - `repomix --include "src/**/*.py" --compress`
+- **Fallback** - Uses native Glob/Grep/Read tools if Repomix unavailable
 
 ### Research
 
@@ -552,7 +549,7 @@ claude
 |----------|--------------|
 | "scrape", "fetch url", "crawl" | Runs **firecrawl-scrape** |
 | "create skill", "skill triggers", "skill system" | Runs **skill-developer** meta-skill |
-| "codebase structure", "file tree", "signatures" | Runs **repoprompt** for code maps |
+| "codebase structure", "file tree", "signatures" | Runs **codebase-explorer** for code maps |
 
 ---
 
@@ -564,7 +561,7 @@ claude
 
 ### When to Use Agents
 
-- Brownfield exploration → `rp-explorer` first
+- Brownfield exploration → `codebase-explorer` first
 - Multi-step research → `research-agent`
 - Complex debugging → `debug-agent`
 - Implementation with handoffs → `implement_plan`
@@ -1438,8 +1435,9 @@ BRAINTRUST_API_KEY="sk-..."             # Session tracing → use claude-mem
 - `trafilatura` - web scraping (Python library)
 - `Context7` - library documentation (MCP server)
 
-**License-based (no API key, optional purchase):**
-- `repoprompt` - codebase maps (Free tier: basic features; Pro: MCP tools, CodeMaps)
+**Free local tools (no API key):**
+- `repomix` - codebase maps with Tree-sitter compression (~50% token reduction)
+- `code2prompt` - alternative codebase packing (Rust-based)
 
 ---
 
@@ -1498,7 +1496,7 @@ BRAINTRUST_API_KEY="sk-..."             # Session tracing → use claude-mem
 - **[Morph](https://www.morphllm.com)** - WarpGrep fast code search
 - **[Firecrawl](https://www.firecrawl.dev)** - Web scraping API
 - **[Perplexity](https://perplexity.ai)** - AI-powered web search
-- **[RepoPrompt](https://repoprompt.com)** - Token-efficient codebase maps (Pro license for MCP tools)
+- **[Repomix](https://github.com/yamadashy/repomix)** - Token-efficient codebase packing (open source)
 
 ---
 
