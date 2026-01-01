@@ -1,3 +1,9 @@
+---
+name: codebase-pattern-finder
+description: Find similar implementations, usage examples, or existing patterns
+model: haiku
+---
+
 # Codebase Pattern Finder Agent
 
 Finds similar implementations, usage examples, or existing patterns to model after. Gives you concrete code examples.

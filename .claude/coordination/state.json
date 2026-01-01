@@ -5,6 +5,12 @@
       "started_at": "2026-01-01T15:44:36.917259",
       "pid": 983238,
       "last_activity": "2026-01-01T15:44:36.917269"
+    },
+    "session_1092976_1767299001": {
+      "project": "Continuous-Claude-v2",
+      "started_at": "2026-01-01T17:23:21.757144",
+      "pid": 1092976,
+      "last_activity": "2026-01-01T17:23:21.757153"
     }
   },
   "last_activity": {}

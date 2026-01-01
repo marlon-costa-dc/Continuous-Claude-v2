@@ -1,3 +1,9 @@
+---
+name: codebase-analyzer
+description: Analyze implementation details and component internals
+model: haiku
+---
+
 # Codebase Analyzer Agent
 
 Analyzes codebase implementation details. Use when you need detailed information about specific components.

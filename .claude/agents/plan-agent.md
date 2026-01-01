@@ -93,7 +93,7 @@ Generated: [timestamp]
 [Key findings from MCP research]
 
 ## Existing Codebase Analysis
-[Relevant patterns, files, architecture notes from repoprompt]
+[Relevant patterns, files, architecture notes from Repomix exploration]
 
 ## Implementation Phases
 
@@ -121,5 +121,5 @@ Generated: [timestamp]
 1. **Read the skill file first** - it has the full methodology
 2. **Use MCP tools for research** - don't guess at best practices
 3. **Be specific** - name exact files, functions, line numbers
-4. **Follow existing patterns** - use repoprompt to find them
+4. **Follow existing patterns** - use Repomix to find them
 5. **Write to output file** - don't just return text

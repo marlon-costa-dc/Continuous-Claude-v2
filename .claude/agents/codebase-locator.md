@@ -1,3 +1,9 @@
+---
+name: codebase-locator
+description: Locate files, directories, and components relevant to a feature
+model: haiku
+---
+
 # Codebase Locator Agent
 
 Locates files, directories, and components relevant to a feature or task. Like a super-powered Grep/Glob/LS.

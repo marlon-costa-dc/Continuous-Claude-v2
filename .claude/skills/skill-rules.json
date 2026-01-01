@@ -638,16 +638,15 @@
         }
     },
     "agents": {
-        "rp-explorer": {
+        "codebase-explorer": {
             "type": "exploration",
             "enforcement": "suggest",
             "priority": "critical",
-            "description": "Token-efficient codebase exploration using RepoPrompt - USE FIRST for brownfield projects",
+            "description": "Token-efficient codebase exploration using Repomix - USE FIRST for brownfield projects",
             "promptTriggers": {
                 "keywords": [
-                    "repoprompt",
-                    "repo prompt",
-                    "rp-explorer",
+                    "repomix",
+                    "codebase-explorer",
                     "context builder",
                     "codemap",
                     "brownfield",
@@ -685,7 +684,7 @@
             "type": "research",
             "enforcement": "suggest",
             "priority": "critical",
-            "description": "Comprehensive research using MCP tools (nia, perplexity, repoprompt, firecrawl)",
+            "description": "Comprehensive research using MCP tools (nia, perplexity, repomix, firecrawl)",
             "promptTriggers": {
                 "keywords": [
                     "research",
@@ -718,7 +717,7 @@
             "type": "planning",
             "enforcement": "suggest",
             "priority": "critical",
-            "description": "Create implementation plans - for brownfield run rp-explorer first",
+            "description": "Create implementation plans - for brownfield run codebase-explorer first",
             "promptTriggers": {
                 "keywords": [
                     "create plan",

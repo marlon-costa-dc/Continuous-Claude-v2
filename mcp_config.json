@@ -11,12 +11,13 @@
       "args": ["mcp-server-fetch"]
     },
     "github": {
-      "type": "http",
-      "url": "https://api.githubcopilot.com/mcp/",
-      "headers": {
-        "Authorization": "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
       },
-      "disabled": true
+      "description": "GitHub repository metadata, PRs, issues, commit history"
     },
     "firecrawl": {
       "type": "stdio",
@@ -60,23 +61,16 @@
       "args": ["-y", "@anthropic/mcp-ast-grep"],
       "disabled": true
     },
-    "repoprompt": {
-      "type": "stdio",
-      "command": "repoprompt_cli",
-      "args": [],
-      "disabled": true,
-      "note": "macOS only - use repomix instead on Linux"
-    },
     "repomix": {
       "type": "stdio",
-      "command": "node",
-      "args": ["/home/marlonsc/repomix/bin/repomix.cjs", "--mcp"],
-      "description": "Codebase packing with Tree-sitter compression (~70% token reduction)"
+      "command": "bash",
+      "args": ["-c", "exec node \"$HOME/repomix/bin/repomix.cjs\" --mcp"],
+      "description": "Codebase packing with Tree-sitter compression (~50% token reduction)"
     },
     "claude-mem": {
       "type": "stdio",
-      "command": "node",
-      "args": ["/home/marlonsc/.claude/plugins/marketplaces/thedotmack/claude-mem-search/dist/index.js"],
+      "command": "bash",
+      "args": ["-c", "exec node \"$HOME/.claude/plugins/marketplaces/thedotmack/claude-mem-search/dist/index.js\""],
       "description": "Cross-session memory via SQLite+Chroma - replaces Braintrust learnings"
     },
     "qlty": {
@@ -84,6 +78,15 @@
       "command": "python",
       "args": ["servers/qlty/server.py"],
       "disabled": false
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"],
+      "env": {
+        "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}"
+      },
+      "description": "Library documentation - resolve library ID first, then fetch docs"
     }
   }
 }

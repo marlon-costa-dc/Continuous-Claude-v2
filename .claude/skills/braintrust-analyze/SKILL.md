@@ -104,3 +104,29 @@ uv run python -m runtime.harness scripts/braintrust_analyze.py --weekly-summary
 
 - BRAINTRUST_API_KEY in ~/.claude/.env or project .env
 - Braintrust tracing enabled (via braintrust-claude-plugin)
+
+## Local Fallback (No API Key)
+
+If `BRAINTRUST_API_KEY` is not available, use **claude-mem** for cross-session memory:
+
+```python
+# Search past sessions and decisions
+mcp__plugin_claude-mem_claude-mem-search__search(query="authentication flow", type="all")
+
+# Get recent context from a project
+mcp__plugin_claude-mem_claude-mem-search__get_recent_context(project="my-project", limit=30)
+
+# Find past decisions
+mcp__plugin_claude-mem_claude-mem-search__decisions(query="architecture")
+
+# View timeline of changes
+mcp__plugin_claude-mem_claude-mem-search__timeline(project="my-project", limit=20)
+```
+
+This provides:
+- Cross-session memory via SQLite + ChromaDB
+- Semantic search across past observations
+- Decision and change tracking
+- No cost, no API key required
+
+Braintrust offers richer tracing data; claude-mem covers most session recall needs.
