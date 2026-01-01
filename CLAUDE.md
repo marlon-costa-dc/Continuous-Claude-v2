@@ -222,19 +222,54 @@ For persistent memory across sessions, install the claude-mem plugin:
 Use the 3-layer token-efficient workflow:
 
 1. **Search (Index)** - ~50 tokens/result
-   ```
-   mcp__plugin_claude-mem_mcp-search__search(query="auth", type="all", limit=10, format="index")
+   ```python
+   mcp__plugin_claude-mem_claude-mem-search__search(query="auth", type="all", limit=10, format="index")
    ```
 
 2. **Timeline (Context)** - ~100 tokens/result
-   ```
-   mcp__plugin_claude-mem_mcp-search__timeline(project="myproject", limit=20)
+   ```python
+   mcp__plugin_claude-mem_claude-mem-search__timeline(project="myproject", limit=20)
    ```
 
 3. **Get Full Details** - ~500 tokens/result
+   ```python
+   mcp__plugin_claude-mem_claude-mem-search__get_observations(ids=[123, 456])
    ```
-   mcp__plugin_claude-mem_mcp-search__get_observations(ids=["obs-123", "obs-456"])
-   ```
+
+### Recommended Daily Workflow
+
+**Session Start (ALWAYS do this first):**
+```python
+mcp__plugin_claude-mem_claude-mem-search__get_recent_context(
+    project="your-project",  # e.g., "flext", "my-app"
+    limit=30,
+    format="full"
+)
+```
+
+**Before Implementing:**
+```python
+mcp__plugin_claude-mem_claude-mem-search__search(
+    query="feature description",
+    type="observations",
+    format="index"
+)
+```
+
+**Before Architectural Decisions:**
+```python
+mcp__plugin_claude-mem_claude-mem-search__decisions(query="topic")
+```
+
+**Understanding Code:**
+```python
+mcp__plugin_claude-mem_claude-mem-search__how_it_works(query="feature")
+```
+
+**Recent Changes:**
+```python
+mcp__plugin_claude-mem_claude-mem-search__changes(query="file or component")
+```
 
 ### Local Data (No API Keys Required)
 
