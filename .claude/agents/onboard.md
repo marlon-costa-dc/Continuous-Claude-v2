@@ -21,31 +21,33 @@ If thoughts/ doesn't exist, tell the user to run `init-project.sh` and stop.
 
 ### Step 2: Codebase Analysis
 
-**Try RepoPrompt first (preferred):**
+**Try Repomix first (preferred - works on Linux):**
 
 ```bash
-# 1. Check if rp-cli is available
-which rp-cli
+# 1. Check if repomix is available
+which repomix || ls ~/bin/repomix 2>/dev/null
 
-# 2. List workspaces - check if this project exists
-rp-cli -e 'workspace list'
+# 2. Get tree overview
+repomix --output-show-tree --style markdown
 
-# 3. If workspace doesn't exist, create it and add folder:
-rp-cli -e 'workspace create --name "project-name"'
-rp-cli -e 'call manage_workspaces {"action": "add_folder", "workspace": "project-name", "folder_path": "/full/path/to/project"}'
+# 3. Get compressed code structure (~70% token reduction)
+repomix --compress --style xml
 
-# 4. Switch to the workspace (by name)
-rp-cli -e 'workspace switch "project-name"'
-
-# 5. Explore the codebase
-rp-cli -e 'tree'
-rp-cli -e 'structure .'
-rp-cli -e 'builder "understand the codebase architecture"'
+# 4. Filter to specific directories if needed
+repomix --include "src/**,lib/**" --compress
 ```
 
-**Important:** `workspace switch` takes a NAME or UUID, not a path.
+**Alternative: code2prompt (Rust):**
 
-**Fallback (no RepoPrompt):**
+```bash
+# Check availability
+which code2prompt || ls ~/bin/code2prompt 2>/dev/null
+
+# Basic usage
+code2prompt .
+```
+
+**Fallback (no Repomix/code2prompt):**
 
 ```bash
 # Project structure
@@ -155,4 +157,5 @@ Return to main conversation with:
 - This agent is for BROWNFIELD projects (existing code)
 - For greenfield, recommend using `/create_plan` instead
 - Ledger can be updated anytime with `/continuity_ledger`
-- Uses rp-cli for exploration (falls back to bash if unavailable)
+- Uses Repomix for exploration (works on Linux, falls back to code2prompt or bash)
+- RepoPrompt (rp-cli) only works on macOS

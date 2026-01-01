@@ -64,7 +64,20 @@
       "type": "stdio",
       "command": "repoprompt_cli",
       "args": [],
-      "disabled": true
+      "disabled": true,
+      "note": "macOS only - use repomix instead on Linux"
+    },
+    "repomix": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/home/marlonsc/repomix/bin/repomix.cjs", "--mcp"],
+      "description": "Codebase packing with Tree-sitter compression (~70% token reduction)"
+    },
+    "claude-mem": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/home/marlonsc/.claude/plugins/marketplaces/thedotmack/claude-mem-search/dist/index.js"],
+      "description": "Cross-session memory via SQLite+Chroma - replaces Braintrust learnings"
     },
     "qlty": {
       "type": "stdio",

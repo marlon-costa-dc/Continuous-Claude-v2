@@ -174,7 +174,81 @@ result = await tool_name(params)  # Pydantic model
 - Type checking: `uv run mypy src/` for validation
 - Script --help: `python scripts/{script}.py --help` shows CLI arguments
 
+## Cross-Session Memory (claude-mem)
+
+For persistent memory across sessions, install the claude-mem plugin:
+
+### Installation
+
+```bash
+/plugin marketplace add thedotmack/claude-mem
+/plugin install claude-mem
+```
+
+### Architecture (5 Layers)
+
+```
+1. Hooks Layer (HTTP Clients)
+   ├── context-hook.js      → SessionStart (injects prior context)
+   ├── save-hook.js         → PostToolUse (saves observations)
+   ├── summary-hook.js      → Stop (generates summaries)
+   └── user-message-hook.js → UserPromptSubmit (captures prompts)
+
+2. Worker Service (HTTP Server - port 37777)
+   └── Bun-managed Express API
+
+3. MCP Server (Search Interface)
+   └── mcp-search → proxies to Worker API
+
+4. Service Layer
+   ├── SessionManager   → Session state
+   ├── SDKAgent         → Claude Agent SDK for summaries
+   ├── SearchManager    → FTS5 + Chroma search
+   └── ChromaSync       → Vector DB sync
+
+5. Data Layer
+   ├── SQLite (~/.claude-mem/claude-mem.db)
+   └── Chroma (~/.claude-mem/chroma/)
+```
+
+### How It Works
+
+- **PostToolUse**: Automatically captures tool observations
+- **Stop**: Generates session summary via Claude Agent SDK
+- **SessionStart**: Injects previous context automatically
+
+### MCP Tools Available
+
+Use the 3-layer token-efficient workflow:
+
+1. **Search (Index)** - ~50 tokens/result
+   ```
+   mcp__plugin_claude-mem_mcp-search__search(query="auth", type="all", limit=10, format="index")
+   ```
+
+2. **Timeline (Context)** - ~100 tokens/result
+   ```
+   mcp__plugin_claude-mem_mcp-search__timeline(project="myproject", limit=20)
+   ```
+
+3. **Get Full Details** - ~500 tokens/result
+   ```
+   mcp__plugin_claude-mem_mcp-search__get_observations(ids=["obs-123", "obs-456"])
+   ```
+
+### Local Data (No API Keys Required)
+
+- Database: `~/.claude-mem/claude-mem.db`
+- Vector DB: `~/.claude-mem/chroma/`
+- Worker: http://localhost:37777
+- Logs: `~/.claude-mem/logs/`
+
+### Skills
+
+- `/mem-search` - Quick access to memory search workflow
+
 ## Refs
 - [Code Execution with MCP](https://www.anthropic.com/engineering/code-execution-with-mcp)
 - [MCP spec](https://modelcontextprotocol.io/)
 - [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
+- [claude-mem Plugin](https://github.com/thedotmack/claude-mem)
