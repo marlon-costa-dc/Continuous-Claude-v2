@@ -259,8 +259,16 @@ claude
 
 ```bash
 # After cloning and syncing
-./install-global.sh
+./install-global.sh           # Interactive (prompts for each step)
+./install-global.sh -y        # Skip confirmations (use defaults)
+./install-global.sh --auto    # Auto-install ALL missing components
+./install-global.sh --validate # Check what's installed (no changes)
 ```
+
+**Flags:**
+- `-y` - Skip confirmation prompts
+- `--auto` - Auto-install ALL missing dependencies (implies -y): uv, node/npm, qlty, ast-grep, repomix, trafilatura, claude-mem
+- `--validate` - Only check installation status, don't install anything
 
 **What it does:**
 
@@ -343,12 +351,25 @@ To restore: cp ~/.claude.json.backup.<timestamp> ~/.claude.json
 
 ### Option 3: Initialize a New Project
 
-After global install, set up any project for full continuity support:
+After global install, projects auto-initialize when you start Claude Code. Or run manually:
 
 ```bash
 cd your-project
-~/.claude/scripts/init-project.sh
+~/.claude/scripts/init-project.sh           # Interactive (default)
+~/.claude/scripts/init-project.sh --quiet   # Auto-detect mode (for scripts)
+~/.claude/scripts/init-project.sh --mode fresh    # Force new thoughts/
+~/.claude/scripts/init-project.sh --mode monorepo # Force symlink to parent
 ```
+
+**Flags:**
+- `--mode fresh` - Create new `thoughts/` directory (standalone project)
+- `--mode monorepo` - Symlink to parent project's `thoughts/` directory
+- `--mode ask` - Interactive prompt (default)
+- `--quiet` - Non-interactive: auto-detect monorepo if parent has `thoughts/`, else fresh
+
+**Auto-initialization:** When you start Claude Code in a project that hasn't been initialized, the SessionStart hook automatically runs `init-project.sh --quiet`. This means:
+- **First `claude` run in any project** → auto-creates `thoughts/` and `.claude/cache/`
+- **Monorepo child projects** → auto-detects parent and creates symlink
 
 **What it does:**
 
@@ -357,16 +378,10 @@ cd your-project
 │  Continuous Claude - Project Initialization                 │
 └─────────────────────────────────────────────────────────────┘
 
-This will create:
-  • thoughts/ledgers/     - Continuity ledgers
-  • thoughts/shared/      - Plans and handoffs
-  • .claude/cache/        - Artifact Index database
-
 Project: /path/to/your-project
+Mode: fresh (or monorepo if parent detected)
 
-Continue? [y/N] y
-
-Creating directories...
+Creating directory structure...
 ✓ thoughts/ledgers/
 ✓ thoughts/shared/handoffs/
 ✓ thoughts/shared/plans/
@@ -378,14 +393,33 @@ Initializing Artifact Index database...
 Adding to .gitignore...
 ✓ Added .claude/cache/ to .gitignore
 
-Project initialized! You can now:
-  • Use /continuity_ledger to save session state
-  • Use /create_handoff to create session handoffs
-  • Use /onboard to analyze the codebase
+Project initialized!
+```
+
+**Monorepo mode** (when parent has `thoughts/`):
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Continuous Claude - Project Initialization                 │
+└─────────────────────────────────────────────────────────────┘
+
+Project: /path/to/parent/child-project
+
+Found parent project with thoughts/ at:
+  /path/to/parent
+
+  1) Fresh install (create new thoughts/ in this project)
+  2) Monorepo mode (symlink to parent's thoughts/)
+
+Choose [1/2, default=1]: 2
+
+→ Setting up monorepo mode...
+✓ Linked thoughts/ → /path/to/parent/thoughts
+✓ Database created at .claude/cache/artifact-index/context.db
 ```
 
 This creates:
-- `thoughts/` - Plans, handoffs, ledgers (gitignored)
+- `thoughts/` - Plans, handoffs, ledgers (or symlink in monorepo mode)
 - `.claude/cache/artifact-index/` - Local search database (SQLite + FTS5)
 - Adds `.claude/cache/` to `.gitignore`
 
