@@ -51,10 +51,10 @@ uv run python -m runtime.harness scripts/nia_docs.py --query "best practices for
 # Latest approaches (Perplexity)
 uv run python -m runtime.harness scripts/perplexity_search.py --query "modern approach to [topic] 2024"
 
-# Codebase exploration (RepoPrompt) - understand existing patterns
-rp-cli -e 'workspace list'  # Check workspace
-rp-cli -e 'structure src/'  # See architecture
-rp-cli -e 'search "pattern" --max-results 20'  # Find related code
+# Codebase exploration (Repomix) - understand existing patterns
+repomix --token-count-tree --style markdown  # See architecture
+repomix --include "src/**" --compress --style xml  # Get code structure
+Grep(pattern="pattern", path="src/", output_mode="files_with_matches")  # Find related code
 
 # Fast code search (Morph/WarpGrep)
 uv run python -m runtime.harness scripts/morph_search.py --query "existing implementation" --path "."

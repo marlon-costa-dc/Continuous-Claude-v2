@@ -40,11 +40,10 @@ $CLAUDE_PROJECT_DIR = /path/to/project
 
 ### Codebase Exploration
 ```bash
-# Codebase exploration (RepoPrompt) - trace code flow
-rp-cli -e 'workspace list'  # Check workspace
-rp-cli -e 'structure src/'  # Understand architecture
-rp-cli -e 'search "error message" --context-lines 5'  # Find error origin
-rp-cli -e 'read file.ts --start-line 100 --limit 50'  # Read specific sections
+# Codebase exploration (Repomix) - trace code flow
+repomix --token-count-tree --style markdown  # Understand architecture
+repomix --include "src/**" --compress --style xml  # Get code structure
+repomix --include "src/auth/**" --compress  # Focus on specific area
 
 # Fast code search (Morph/WarpGrep) - find patterns quickly
 uv run python -m runtime.harness scripts/morph_search.py --query "function_name" --path "."
@@ -131,17 +130,20 @@ Generated: [timestamp]
 ## Investigation Techniques
 
 ```bash
-# Find where error originates
-rp-cli -e 'search "exact error message"'
+# Find where error originates (use Grep tool or repomix)
+repomix --include "src/**" --compress | grep "error message"
+
+# Or use native Grep tool
+Grep(pattern="exact error message", path="src/")
 
 # Trace function calls
-rp-cli -e 'search "functionName(" --max-results 50'
+Grep(pattern="functionName\\(", path="src/", output_mode="content", -C=3)
 
 # Find related tests
-rp-cli -e 'search "describe.*functionName"'
+Grep(pattern="describe.*functionName", path="tests/")
 
 # Check for TODO/FIXME near issue
-rp-cli -e 'search "TODO|FIXME" --context-lines 2'
+Grep(pattern="TODO|FIXME", path="src/", output_mode="content", -C=2)
 ```
 
 ## Rules

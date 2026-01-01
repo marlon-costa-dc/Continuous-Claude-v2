@@ -1,6 +1,6 @@
 ---
 name: research-agent
-description: Comprehensive research using MCP tools (nia, perplexity, repoprompt, firecrawl)
+description: Comprehensive research using MCP tools (nia, perplexity, repomix, firecrawl)
 model: opus
 ---
 
@@ -55,11 +55,11 @@ uv run python -m runtime.harness scripts/firecrawl_scrape.py --url "https://..."
 
 ### For Codebase Knowledge
 ```bash
-# Codebase exploration (RepoPrompt) - token efficient
-rp-cli -e 'workspace list'  # Check workspace
-rp-cli -e 'structure src/'  # Codemaps (signatures only)
-rp-cli -e 'search "pattern" --max-results 20'  # Search
-rp-cli -e 'read file.ts --start-line 50 --limit 30'  # Slices
+# Codebase exploration (Repomix) - token efficient (~50% reduction)
+repomix --token-count-tree --style markdown  # Codemaps (structure)
+repomix --include "src/**" --compress --style xml  # Signatures only
+Grep(pattern="pattern", path="src/", output_mode="content", -C=3)  # Search with context
+Read(file_path="file.ts", offset=50, limit=30)  # Slices
 
 # Fast code search (Morph/WarpGrep)
 uv run python -m runtime.harness scripts/morph_search.py --query "pattern" --path "."

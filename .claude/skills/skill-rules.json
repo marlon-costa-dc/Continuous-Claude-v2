@@ -382,14 +382,14 @@
                 ]
             }
         },
-        "repoprompt": {
+        "codebase-explorer": {
             "type": "domain",
             "enforcement": "suggest",
             "priority": "medium",
-            "description": "Explore codebase via RepoPrompt CLI",
+            "description": "Explore codebase via Repomix CLI (token-efficient, ~50% reduction)",
             "promptTriggers": {
                 "keywords": [
-                    "repoprompt",
+                    "repomix",
                     "codebase structure",
                     "file tree",
                     "code context",

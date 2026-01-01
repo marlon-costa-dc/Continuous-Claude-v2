@@ -2,6 +2,57 @@
 import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
+import * as http from "http";
+var CLAUDE_MEM_PORT = process.env.CLAUDE_MEM_WORKER_PORT || "37777";
+function getProjectName(cwd) {
+  const home = process.env.HOME || "";
+  if (cwd.startsWith(`${home}/flext`)) {
+    return "flext";
+  } else if (cwd.startsWith(`${home}/invest`)) {
+    return "invest";
+  } else if (cwd.includes("Continuous-Claude-v2")) {
+    return "Continuous-Claude-v2";
+  }
+  return path.basename(cwd);
+}
+async function loadClaudeMemContext(project) {
+  return new Promise((resolve) => {
+    const url = `http://127.0.0.1:${CLAUDE_MEM_PORT}/api/context/inject?project=${encodeURIComponent(project)}`;
+    const req = http.get(url, { timeout: 5e3 }, (res) => {
+      let data = "";
+      res.on("data", (chunk) => data += chunk);
+      res.on("end", () => {
+        if (data && data.startsWith("# [")) {
+          resolve(data);
+        } else {
+          resolve("");
+        }
+      });
+    });
+    req.on("error", () => resolve(""));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve("");
+    });
+  });
+}
+async function isWorkerReady() {
+  return new Promise((resolve) => {
+    const url = `http://127.0.0.1:${CLAUDE_MEM_PORT}/api/readiness`;
+    const req = http.get(url, { timeout: 2e3 }, (res) => {
+      let data = "";
+      res.on("data", (chunk) => data += chunk);
+      res.on("end", () => {
+        resolve(data.includes('"status":"ready"'));
+      });
+    });
+    req.on("error", () => resolve(false));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(false);
+    });
+  });
+}
 function pruneLedger(ledgerPath) {
   let content = fs.readFileSync(ledgerPath, "utf-8");
   const originalLength = content.length;
@@ -83,113 +134,111 @@ function getUnmarkedHandoffs() {
 async function main() {
   const input = JSON.parse(await readStdin());
   const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-  const sessionType = input.source || input.type;
-  const ledgerDir = path.join(projectDir, "thoughts", "ledgers");
-  if (!fs.existsSync(ledgerDir)) {
-    console.log(JSON.stringify({ result: "continue" }));
-    return;
+  const sessionType = input.source || input.type || "startup";
+  const projectName = getProjectName(projectDir);
+  let claudeMemContext = "";
+  if (await isWorkerReady()) {
+    claudeMemContext = await loadClaudeMemContext(projectName);
+    if (claudeMemContext) {
+      console.error(`\u2713 Claude-mem context loaded for ${projectName}`);
+    }
   }
-  const ledgerFiles = fs.readdirSync(ledgerDir).filter((f) => f.startsWith("CONTINUITY_CLAUDE-") && f.endsWith(".md")).sort((a, b) => {
-    const statA = fs.statSync(path.join(ledgerDir, a));
-    const statB = fs.statSync(path.join(ledgerDir, b));
-    return statB.mtime.getTime() - statA.mtime.getTime();
-  });
+  const ledgerDir = path.join(projectDir, "thoughts", "ledgers");
+  let ledgerContent = "";
+  let sessionName = "";
+  let currentFocus = "Unknown";
+  let goalSummary = "No goal found";
+  let handoffDir = "";
+  let latestHandoff = null;
+  if (fs.existsSync(ledgerDir)) {
+    const ledgerFiles = fs.readdirSync(ledgerDir).filter((f) => f.startsWith("CONTINUITY_CLAUDE-") && f.endsWith(".md")).sort((a, b) => {
+      const statA = fs.statSync(path.join(ledgerDir, a));
+      const statB = fs.statSync(path.join(ledgerDir, b));
+      return statB.mtime.getTime() - statA.mtime.getTime();
+    });
+    if (ledgerFiles.length > 0) {
+      const mostRecent = ledgerFiles[0];
+      const ledgerPath = path.join(ledgerDir, mostRecent);
+      pruneLedger(ledgerPath);
+      ledgerContent = fs.readFileSync(ledgerPath, "utf-8");
+      const goalMatch = ledgerContent.match(/## Goal\n([\s\S]*?)(?=\n## |$)/);
+      const nowMatch = ledgerContent.match(/- Now: ([^\n]+)/);
+      goalSummary = goalMatch ? goalMatch[1].trim().split("\n")[0].substring(0, 100) : "No goal found";
+      currentFocus = nowMatch ? nowMatch[1].trim() : "Unknown";
+      sessionName = mostRecent.replace("CONTINUITY_CLAUDE-", "").replace(".md", "");
+      handoffDir = path.join(projectDir, "thoughts", "shared", "handoffs", sessionName);
+      latestHandoff = getLatestHandoff(handoffDir);
+      console.error(`\u2713 Ledger loaded: ${sessionName} \u2192 ${currentFocus}`);
+    }
+  }
   let message = "";
   let additionalContext = "";
-  if (ledgerFiles.length > 0) {
-    const mostRecent = ledgerFiles[0];
-    const ledgerPath = path.join(ledgerDir, mostRecent);
-    pruneLedger(ledgerPath);
-    const ledgerContent = fs.readFileSync(ledgerPath, "utf-8");
-    const goalMatch = ledgerContent.match(/## Goal\n([\s\S]*?)(?=\n## |$)/);
-    const nowMatch = ledgerContent.match(/- Now: ([^\n]+)/);
-    const goalSummary = goalMatch ? goalMatch[1].trim().split("\n")[0].substring(0, 100) : "No goal found";
-    const currentFocus = nowMatch ? nowMatch[1].trim() : "Unknown";
-    const sessionName = mostRecent.replace("CONTINUITY_CLAUDE-", "").replace(".md", "");
-    const handoffDir = path.join(projectDir, "thoughts", "shared", "handoffs", sessionName);
-    const latestHandoff = getLatestHandoff(handoffDir);
-    if (sessionType === "startup") {
-      let startupMsg = `\u{1F4CB} Ledger available: ${sessionName} \u2192 ${currentFocus}`;
+  if (ledgerContent || claudeMemContext) {
+    if (sessionName) {
+      message = `[${sessionType}] Session: ${sessionName} | Focus: ${currentFocus}`;
       if (latestHandoff) {
-        if (latestHandoff.isAutoHandoff) {
-          startupMsg += ` | Last handoff: auto (${latestHandoff.status})`;
-        } else {
-          startupMsg += ` | Last handoff: task-${latestHandoff.taskNumber} (${latestHandoff.status})`;
-        }
+        const handoffLabel = latestHandoff.isAutoHandoff ? `auto (${latestHandoff.status})` : `task-${latestHandoff.taskNumber} (${latestHandoff.status})`;
+        message += ` | Handoff: ${handoffLabel}`;
       }
-      startupMsg += " (run /resume_handoff to continue)";
-      message = startupMsg;
-    } else {
-      console.error(`\u2713 Ledger loaded: ${sessionName} \u2192 ${currentFocus}`);
-      message = `[${sessionType}] Loaded: ${mostRecent} | Goal: ${goalSummary} | Focus: ${currentFocus}`;
-      if (sessionType === "clear" || sessionType === "compact") {
-        additionalContext = `Continuity ledger loaded from ${mostRecent}:
-
-${ledgerContent}`;
-        const unmarkedHandoffs = getUnmarkedHandoffs();
-        if (unmarkedHandoffs.length > 0) {
-          additionalContext += `
-
----
-
-## Unmarked Session Outcomes
-
-`;
-          additionalContext += `The following handoffs have no outcome marked. Consider marking them to improve future session recommendations:
-
-`;
-          for (const h of unmarkedHandoffs) {
-            const taskLabel = h.task_number ? `task-${h.task_number}` : "handoff";
-            const summaryPreview = h.task_summary ? h.task_summary.substring(0, 60) + "..." : "(no summary)";
-            additionalContext += `- **${h.session_name}/${taskLabel}** (ID: \`${h.id.substring(0, 8)}\`): ${summaryPreview}
-`;
-          }
-          additionalContext += `
-To mark an outcome:
-\`\`\`bash
-uv run python scripts/artifact_mark.py --handoff <ID> --outcome SUCCEEDED|PARTIAL_PLUS|PARTIAL_MINUS|FAILED
-\`\`\`
-`;
-        }
-        if (latestHandoff) {
-          const handoffPath = path.join(handoffDir, latestHandoff.filename);
-          const handoffContent = fs.readFileSync(handoffPath, "utf-8");
-          const handoffLabel = latestHandoff.isAutoHandoff ? "Latest auto-handoff" : "Latest task handoff";
-          additionalContext += `
-
----
-
-${handoffLabel} (${latestHandoff.filename}):
-`;
-          additionalContext += `Status: ${latestHandoff.status}${latestHandoff.isAutoHandoff ? "" : ` | Task: ${latestHandoff.taskNumber}`}
-
-`;
-          const truncatedHandoff = handoffContent.length > 2e3 ? handoffContent.substring(0, 2e3) + "\n\n[... truncated, read full file if needed]" : handoffContent;
-          additionalContext += truncatedHandoff;
-          const allHandoffs = fs.readdirSync(handoffDir).filter((f) => (f.startsWith("task-") || f.startsWith("auto-handoff-")) && f.endsWith(".md")).sort((a, b) => {
-            const statA = fs.statSync(path.join(handoffDir, a));
-            const statB = fs.statSync(path.join(handoffDir, b));
-            return statB.mtime.getTime() - statA.mtime.getTime();
-          });
-          if (allHandoffs.length > 1) {
-            additionalContext += `
-
----
-
-All handoffs in ${handoffDir}:
-`;
-            allHandoffs.forEach((f) => {
-              additionalContext += `- ${f}
-`;
-            });
-          }
-        }
+      if (claudeMemContext) {
+        message += " | Claude-mem: \u2713";
       }
+    } else if (claudeMemContext) {
+      message = `[${sessionType}] Claude-mem context loaded for ${projectName}`;
     }
-  } else {
+  }
+  const contextParts = [];
+  if (claudeMemContext) {
+    contextParts.push(`## Claude-Mem Context
+
+${claudeMemContext}`);
+  }
+  if (ledgerContent) {
+    contextParts.push(`## Continuity Ledger
+
+Loaded from: CONTINUITY_CLAUDE-${sessionName}.md
+
+${ledgerContent}`);
+  }
+  if (latestHandoff && handoffDir) {
+    const handoffPath = path.join(handoffDir, latestHandoff.filename);
+    if (fs.existsSync(handoffPath)) {
+      const handoffContent = fs.readFileSync(handoffPath, "utf-8");
+      const handoffLabel = latestHandoff.isAutoHandoff ? "Auto-handoff" : "Task Handoff";
+      const truncatedHandoff = handoffContent.length > 2e3 ? handoffContent.substring(0, 2e3) + "\n\n[... truncated, read full file if needed]" : handoffContent;
+      contextParts.push(`## Latest ${handoffLabel}
+
+File: ${latestHandoff.filename}
+Status: ${latestHandoff.status}
+
+${truncatedHandoff}`);
+    }
+  }
+  if (sessionType !== "startup") {
+    const unmarkedHandoffs = getUnmarkedHandoffs();
+    if (unmarkedHandoffs.length > 0) {
+      let unmarkedSection = `## Unmarked Session Outcomes
+
+`;
+      unmarkedSection += `Consider marking these to improve future recommendations:
+
+`;
+      for (const h of unmarkedHandoffs) {
+        const taskLabel = h.task_number ? `task-${h.task_number}` : "handoff";
+        const summaryPreview = h.task_summary ? h.task_summary.substring(0, 60) + "..." : "(no summary)";
+        unmarkedSection += `- **${h.session_name}/${taskLabel}** (ID: \`${h.id.substring(0, 8)}\`): ${summaryPreview}
+`;
+      }
+      contextParts.push(unmarkedSection);
+    }
+  }
+  if (contextParts.length > 0) {
+    additionalContext = contextParts.join("\n\n---\n\n");
+  }
+  if (!message && !additionalContext) {
     if (sessionType !== "startup") {
-      console.error(`\u26A0 No ledger found. Run /continuity_ledger to track session state.`);
-      message = `[${sessionType}] No ledger found. Consider running /continuity_ledger to track session state.`;
+      console.error(`\u26A0 No ledger or claude-mem context found.`);
+      message = `[${sessionType}] No context found. Run /continuity_ledger to track session state.`;
     }
   }
   const output = { result: "continue" };

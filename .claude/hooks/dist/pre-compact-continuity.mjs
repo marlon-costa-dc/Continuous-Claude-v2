@@ -1,6 +1,7 @@
 // src/pre-compact-continuity.ts
 import * as fs2 from "fs";
 import * as path from "path";
+import * as http from "http";
 
 // src/transcript-parser.ts
 import * as fs from "fs";
@@ -207,6 +208,128 @@ if (isMainModule) {
 }
 
 // src/pre-compact-continuity.ts
+var CLAUDE_MEM_PORT = process.env.CLAUDE_MEM_WORKER_PORT || "37777";
+function getProjectName(cwd) {
+  const home = process.env.HOME || "";
+  if (cwd.startsWith(`${home}/flext`)) {
+    return "flext";
+  } else if (cwd.startsWith(`${home}/invest`)) {
+    return "invest";
+  } else if (cwd.includes("Continuous-Claude-v2")) {
+    return "Continuous-Claude-v2";
+  }
+  return path.basename(cwd);
+}
+async function saveToClaudeMem(summary, project, sessionId) {
+  return new Promise((resolve) => {
+    const url = `http://127.0.0.1:${CLAUDE_MEM_PORT}/api/observations`;
+    const inProgress = summary.lastTodos.filter((t) => t.status === "in_progress");
+    const pending = summary.lastTodos.filter((t) => t.status === "pending");
+    const completed = summary.lastTodos.filter((t) => t.status === "completed");
+    const facts = [];
+    if (summary.filesModified.length > 0) {
+      facts.push(`Files modified: ${summary.filesModified.slice(0, 5).join(", ")}${summary.filesModified.length > 5 ? ` (+${summary.filesModified.length - 5} more)` : ""}`);
+    }
+    if (inProgress.length > 0) {
+      facts.push(`In progress: ${inProgress.map((t) => t.content).join("; ")}`);
+    }
+    if (pending.length > 0) {
+      facts.push(`Pending: ${pending.length} tasks`);
+    }
+    if (completed.length > 0) {
+      facts.push(`Completed: ${completed.length} tasks`);
+    }
+    if (summary.errorsEncountered.length > 0) {
+      facts.push(`Errors: ${summary.errorsEncountered.length} encountered`);
+    }
+    const observation = {
+      project,
+      type: "session-compact",
+      title: `Session compacted: ${summary.lastTodos.length} todos, ${summary.filesModified.length} files`,
+      summary: summary.lastAssistantMessage.substring(0, 200) || "Auto-compact before context limit",
+      facts,
+      files_modified: summary.filesModified.slice(0, 10),
+      session_id: sessionId
+    };
+    const postData = JSON.stringify(observation);
+    const options = {
+      hostname: "127.0.0.1",
+      port: parseInt(CLAUDE_MEM_PORT, 10),
+      path: "/api/observations",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(postData)
+      },
+      timeout: 5e3
+    };
+    const req = http.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => data += chunk);
+      res.on("end", () => {
+        resolve(res.statusCode === 200 || res.statusCode === 201);
+      });
+    });
+    req.on("error", () => resolve(false));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.write(postData);
+    req.end();
+  });
+}
+function updateLedgerState(ledgerPath, summary) {
+  try {
+    let content = fs2.readFileSync(ledgerPath, "utf-8");
+    if (summary.lastTodos.length === 0) {
+      return;
+    }
+    const inProgress = summary.lastTodos.filter((t) => t.status === "in_progress");
+    const pending = summary.lastTodos.filter((t) => t.status === "pending");
+    const completed = summary.lastTodos.filter((t) => t.status === "completed");
+    const lines = ["## State"];
+    lines.push("- Done:");
+    if (completed.length > 0) {
+      completed.forEach((t) => lines.push(`  - [x] ${t.content}`));
+    } else {
+      lines.push("  - (none this session)");
+    }
+    if (inProgress.length > 0) {
+      lines.push(`- Now: [\u2192] ${inProgress[0].content}`);
+      inProgress.slice(1).forEach((t) => lines.push(`  - [\u2192] ${t.content}`));
+    } else {
+      lines.push("- Now: Awaiting direction");
+    }
+    if (pending.length > 0) {
+      lines.push(`- Next: ${pending[0].content}`);
+      if (pending.length > 1) {
+        lines.push("- Remaining:");
+        pending.slice(1).forEach((t) => lines.push(`  - [ ] ${t.content}`));
+      }
+    } else {
+      lines.push("- Next: To be determined");
+    }
+    lines.push("");
+    const newStateSection = lines.join("\n");
+    const stateMatch = content.match(/## State\n[\s\S]*?(?=\n## |$)/);
+    if (stateMatch) {
+      content = content.replace(stateMatch[0], newStateSection.trim());
+    } else {
+      const goalEnd = content.match(/## Goal\n[\s\S]*?(?=\n## |$)/);
+      if (goalEnd && goalEnd.index !== void 0) {
+        const insertPos = goalEnd.index + goalEnd[0].length;
+        content = content.slice(0, insertPos) + "\n\n" + newStateSection + content.slice(insertPos);
+      } else {
+        content += "\n\n" + newStateSection;
+      }
+    }
+    fs2.writeFileSync(ledgerPath, content);
+    console.error("\u2713 Ledger state updated with current todos");
+  } catch (err) {
+    console.error(`\u26A0 Failed to update ledger state: ${err}`);
+  }
+}
 async function main() {
   const input = JSON.parse(await readStdin());
   const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
@@ -228,7 +351,9 @@ async function main() {
   const ledgerPath = path.join(ledgerDir, mostRecent);
   if (input.trigger === "auto") {
     const sessionName = mostRecent.replace("CONTINUITY_CLAUDE-", "").replace(".md", "");
+    const projectName = getProjectName(projectDir);
     let handoffFile = "";
+    let savedToClaudeMem = false;
     if (input.transcript_path && fs2.existsSync(input.transcript_path)) {
       const summary = parseTranscript(input.transcript_path);
       const handoffContent = generateAutoHandoff(summary, sessionName);
@@ -238,6 +363,11 @@ async function main() {
       handoffFile = `auto-handoff-${timestamp}.md`;
       const handoffPath = path.join(handoffDir, handoffFile);
       fs2.writeFileSync(handoffPath, handoffContent);
+      savedToClaudeMem = await saveToClaudeMem(summary, projectName, input.session_id);
+      if (savedToClaudeMem) {
+        console.error("\u2713 Saved session summary to claude-mem");
+      }
+      updateLedgerState(ledgerPath, summary);
       const briefSummary = generateAutoSummary(projectDir, input.session_id);
       if (briefSummary) {
         appendToLedger(ledgerPath, briefSummary);
@@ -248,7 +378,10 @@ async function main() {
         appendToLedger(ledgerPath, briefSummary);
       }
     }
-    const message = handoffFile ? `[PreCompact:auto] Created ${handoffFile} in thoughts/shared/handoffs/${sessionName}/` : `[PreCompact:auto] Session summary auto-appended to ${mostRecent}`;
+    let message = handoffFile ? `[PreCompact:auto] Created ${handoffFile} in thoughts/shared/handoffs/${sessionName}/` : `[PreCompact:auto] Session summary auto-appended to ${mostRecent}`;
+    if (savedToClaudeMem) {
+      message += " | claude-mem: \u2713";
+    }
     const output = {
       continue: true,
       systemMessage: message

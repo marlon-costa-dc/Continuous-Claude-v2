@@ -1,11 +1,83 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import * as http from 'http';
 
 interface SessionStartInput {
   type?: 'startup' | 'resume' | 'clear' | 'compact';  // Legacy field
   source?: 'startup' | 'resume' | 'clear' | 'compact'; // Per docs
   session_id: string;
+}
+
+// Claude-Mem integration
+const CLAUDE_MEM_PORT = process.env.CLAUDE_MEM_WORKER_PORT || '37777';
+
+/**
+ * Get project name from path for claude-mem queries
+ */
+function getProjectName(cwd: string): string {
+  const home = process.env.HOME || '';
+
+  if (cwd.startsWith(`${home}/flext`)) {
+    return 'flext';
+  } else if (cwd.startsWith(`${home}/invest`)) {
+    return 'invest';
+  } else if (cwd.includes('Continuous-Claude-v2')) {
+    return 'Continuous-Claude-v2';
+  }
+
+  return path.basename(cwd);
+}
+
+/**
+ * Load context from claude-mem worker via HTTP API
+ */
+async function loadClaudeMemContext(project: string): Promise<string> {
+  return new Promise((resolve) => {
+    const url = `http://127.0.0.1:${CLAUDE_MEM_PORT}/api/context/inject?project=${encodeURIComponent(project)}`;
+
+    const req = http.get(url, { timeout: 5000 }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        // Check if we got valid context (should start with "# [project]")
+        if (data && data.startsWith('# [')) {
+          resolve(data);
+        } else {
+          resolve('');
+        }
+      });
+    });
+
+    req.on('error', () => resolve(''));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve('');
+    });
+  });
+}
+
+/**
+ * Check if claude-mem worker is ready
+ */
+async function isWorkerReady(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const url = `http://127.0.0.1:${CLAUDE_MEM_PORT}/api/readiness`;
+
+    const req = http.get(url, { timeout: 2000 }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        resolve(data.includes('"status":"ready"'));
+      });
+    });
+
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
+  });
 }
 
 interface HandoffSummary {
@@ -155,130 +227,145 @@ async function main() {
   const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 
   // Support both 'source' (per docs) and 'type' (legacy) fields
-  const sessionType = input.source || input.type;
+  const sessionType = input.source || input.type || 'startup';
+
+  // Determine project name for claude-mem
+  const projectName = getProjectName(projectDir);
+
+  // Load claude-mem context first (works for ALL session types)
+  let claudeMemContext = '';
+  if (await isWorkerReady()) {
+    claudeMemContext = await loadClaudeMemContext(projectName);
+    if (claudeMemContext) {
+      console.error(`✓ Claude-mem context loaded for ${projectName}`);
+    }
+  }
 
   // Find existing ledgers, sorted by modification time
   const ledgerDir = path.join(projectDir, 'thoughts', 'ledgers');
-  if (!fs.existsSync(ledgerDir)) {
-    // No thoughts/ledgers directory - exit silently (normal for new projects)
-    console.log(JSON.stringify({ result: 'continue' }));
-    return;
-  }
-  const ledgerFiles = fs.readdirSync(ledgerDir)
-    .filter(f => f.startsWith('CONTINUITY_CLAUDE-') && f.endsWith('.md'))
-    .sort((a, b) => {
-      const statA = fs.statSync(path.join(ledgerDir, a));
-      const statB = fs.statSync(path.join(ledgerDir, b));
-      return statB.mtime.getTime() - statA.mtime.getTime();
-    });
+  let ledgerContent = '';
+  let sessionName = '';
+  let currentFocus = 'Unknown';
+  let goalSummary = 'No goal found';
+  let handoffDir = '';
+  let latestHandoff: HandoffSummary | null = null;
 
+  if (fs.existsSync(ledgerDir)) {
+    const ledgerFiles = fs.readdirSync(ledgerDir)
+      .filter(f => f.startsWith('CONTINUITY_CLAUDE-') && f.endsWith('.md'))
+      .sort((a, b) => {
+        const statA = fs.statSync(path.join(ledgerDir, a));
+        const statB = fs.statSync(path.join(ledgerDir, b));
+        return statB.mtime.getTime() - statA.mtime.getTime();
+      });
+
+    if (ledgerFiles.length > 0) {
+      const mostRecent = ledgerFiles[0];
+      const ledgerPath = path.join(ledgerDir, mostRecent);
+
+      // Prune ledger before reading to prevent bloat
+      pruneLedger(ledgerPath);
+
+      ledgerContent = fs.readFileSync(ledgerPath, 'utf-8');
+
+      // Extract key sections for summary
+      const goalMatch = ledgerContent.match(/## Goal\n([\s\S]*?)(?=\n## |$)/);
+      const nowMatch = ledgerContent.match(/- Now: ([^\n]+)/);
+
+      goalSummary = goalMatch
+        ? goalMatch[1].trim().split('\n')[0].substring(0, 100)
+        : 'No goal found';
+
+      currentFocus = nowMatch
+        ? nowMatch[1].trim()
+        : 'Unknown';
+
+      sessionName = mostRecent.replace('CONTINUITY_CLAUDE-', '').replace('.md', '');
+
+      // Check for handoff directory
+      handoffDir = path.join(projectDir, 'thoughts', 'shared', 'handoffs', sessionName);
+      latestHandoff = getLatestHandoff(handoffDir);
+
+      console.error(`✓ Ledger loaded: ${sessionName} → ${currentFocus}`);
+    }
+  }
+
+  // Build unified context for ALL session types
   let message = '';
   let additionalContext = '';
 
-  if (ledgerFiles.length > 0) {
-    const mostRecent = ledgerFiles[0];
-    const ledgerPath = path.join(ledgerDir, mostRecent);
-
-    // Prune ledger before reading to prevent bloat
-    pruneLedger(ledgerPath);
-
-    const ledgerContent = fs.readFileSync(ledgerPath, 'utf-8');
-
-    // Extract key sections for summary
-    const goalMatch = ledgerContent.match(/## Goal\n([\s\S]*?)(?=\n## |$)/);
-    const nowMatch = ledgerContent.match(/- Now: ([^\n]+)/);
-
-    const goalSummary = goalMatch
-      ? goalMatch[1].trim().split('\n')[0].substring(0, 100)
-      : 'No goal found';
-
-    const currentFocus = nowMatch
-      ? nowMatch[1].trim()
-      : 'Unknown';
-
-    const sessionName = mostRecent.replace('CONTINUITY_CLAUDE-', '').replace('.md', '');
-
-    // Check for handoff directory
-    const handoffDir = path.join(projectDir, 'thoughts', 'shared', 'handoffs', sessionName);
-    const latestHandoff = getLatestHandoff(handoffDir);
-
-    if (sessionType === 'startup') {
-      // Fresh startup: just notify ledger exists, don't load full context
-      let startupMsg = `📋 Ledger available: ${sessionName} → ${currentFocus}`;
+  // Build message based on what's available
+  if (ledgerContent || claudeMemContext) {
+    if (sessionName) {
+      message = `[${sessionType}] Session: ${sessionName} | Focus: ${currentFocus}`;
       if (latestHandoff) {
-        if (latestHandoff.isAutoHandoff) {
-          startupMsg += ` | Last handoff: auto (${latestHandoff.status})`;
-        } else {
-          startupMsg += ` | Last handoff: task-${latestHandoff.taskNumber} (${latestHandoff.status})`;
-        }
+        const handoffLabel = latestHandoff.isAutoHandoff
+          ? `auto (${latestHandoff.status})`
+          : `task-${latestHandoff.taskNumber} (${latestHandoff.status})`;
+        message += ` | Handoff: ${handoffLabel}`;
       }
-      startupMsg += ' (run /resume_handoff to continue)';
-      message = startupMsg;
-    } else {
-      // resume/clear/compact: load full context
-      console.error(`✓ Ledger loaded: ${sessionName} → ${currentFocus}`);
-      message = `[${sessionType}] Loaded: ${mostRecent} | Goal: ${goalSummary} | Focus: ${currentFocus}`;
-
-      // For clear/compact, provide full ledger content as additional context
-      if (sessionType === 'clear' || sessionType === 'compact') {
-        additionalContext = `Continuity ledger loaded from ${mostRecent}:\n\n${ledgerContent}`;
-
-        // Check for unmarked handoffs and prompt user to mark outcomes
-        const unmarkedHandoffs = getUnmarkedHandoffs();
-        if (unmarkedHandoffs.length > 0) {
-          additionalContext += `\n\n---\n\n## Unmarked Session Outcomes\n\n`;
-          additionalContext += `The following handoffs have no outcome marked. Consider marking them to improve future session recommendations:\n\n`;
-          for (const h of unmarkedHandoffs) {
-            const taskLabel = h.task_number ? `task-${h.task_number}` : 'handoff';
-            const summaryPreview = h.task_summary ? h.task_summary.substring(0, 60) + '...' : '(no summary)';
-            additionalContext += `- **${h.session_name}/${taskLabel}** (ID: \`${h.id.substring(0, 8)}\`): ${summaryPreview}\n`;
-          }
-          additionalContext += `\nTo mark an outcome:\n\`\`\`bash\nuv run python scripts/artifact_mark.py --handoff <ID> --outcome SUCCEEDED|PARTIAL_PLUS|PARTIAL_MINUS|FAILED\n\`\`\`\n`;
-        }
-
-        // Add handoff context if available
-        if (latestHandoff) {
-          const handoffPath = path.join(handoffDir, latestHandoff.filename);
-          const handoffContent = fs.readFileSync(handoffPath, 'utf-8');
-
-          const handoffLabel = latestHandoff.isAutoHandoff ? 'Latest auto-handoff' : 'Latest task handoff';
-          additionalContext += `\n\n---\n\n${handoffLabel} (${latestHandoff.filename}):\n`;
-          additionalContext += `Status: ${latestHandoff.status}${latestHandoff.isAutoHandoff ? '' : ` | Task: ${latestHandoff.taskNumber}`}\n\n`;
-
-          // Include truncated handoff content (first 2000 chars)
-          const truncatedHandoff = handoffContent.length > 2000
-            ? handoffContent.substring(0, 2000) + '\n\n[... truncated, read full file if needed]'
-            : handoffContent;
-          additionalContext += truncatedHandoff;
-
-          // List other handoffs in directory
-          const allHandoffs = fs.readdirSync(handoffDir)
-            .filter(f => (f.startsWith('task-') || f.startsWith('auto-handoff-')) && f.endsWith('.md'))
-            .sort((a, b) => {
-              // Sort by modification time (most recent first)
-              const statA = fs.statSync(path.join(handoffDir, a));
-              const statB = fs.statSync(path.join(handoffDir, b));
-              return statB.mtime.getTime() - statA.mtime.getTime();
-            });
-          if (allHandoffs.length > 1) {
-            additionalContext += `\n\n---\n\nAll handoffs in ${handoffDir}:\n`;
-            allHandoffs.forEach(f => {
-              additionalContext += `- ${f}\n`;
-            });
-          }
-        }
-
-        // Learnings are now extracted via --learn and compounded via /compound-learnings skill
-        // No need to surface raw learnings at SessionStart - they become permanent rules
+      if (claudeMemContext) {
+        message += ' | Claude-mem: ✓';
       }
+    } else if (claudeMemContext) {
+      message = `[${sessionType}] Claude-mem context loaded for ${projectName}`;
     }
-  } else {
-    // No ledger found
+  }
+
+  // Build additionalContext with ALL available sources (merged)
+  const contextParts: string[] = [];
+
+  // 1. Claude-Mem context (semantic memory, decisions, observations)
+  if (claudeMemContext) {
+    contextParts.push(`## Claude-Mem Context\n\n${claudeMemContext}`);
+  }
+
+  // 2. Continuity Ledger (current session state)
+  if (ledgerContent) {
+    contextParts.push(`## Continuity Ledger\n\nLoaded from: CONTINUITY_CLAUDE-${sessionName}.md\n\n${ledgerContent}`);
+  }
+
+  // 3. Latest Handoff (task context)
+  if (latestHandoff && handoffDir) {
+    const handoffPath = path.join(handoffDir, latestHandoff.filename);
+    if (fs.existsSync(handoffPath)) {
+      const handoffContent = fs.readFileSync(handoffPath, 'utf-8');
+      const handoffLabel = latestHandoff.isAutoHandoff ? 'Auto-handoff' : 'Task Handoff';
+      const truncatedHandoff = handoffContent.length > 2000
+        ? handoffContent.substring(0, 2000) + '\n\n[... truncated, read full file if needed]'
+        : handoffContent;
+
+      contextParts.push(`## Latest ${handoffLabel}\n\nFile: ${latestHandoff.filename}\nStatus: ${latestHandoff.status}\n\n${truncatedHandoff}`);
+    }
+  }
+
+  // 4. Unmarked handoffs (for clear/compact/resume only)
+  if (sessionType !== 'startup') {
+    const unmarkedHandoffs = getUnmarkedHandoffs();
+    if (unmarkedHandoffs.length > 0) {
+      let unmarkedSection = `## Unmarked Session Outcomes\n\n`;
+      unmarkedSection += `Consider marking these to improve future recommendations:\n\n`;
+      for (const h of unmarkedHandoffs) {
+        const taskLabel = h.task_number ? `task-${h.task_number}` : 'handoff';
+        const summaryPreview = h.task_summary ? h.task_summary.substring(0, 60) + '...' : '(no summary)';
+        unmarkedSection += `- **${h.session_name}/${taskLabel}** (ID: \`${h.id.substring(0, 8)}\`): ${summaryPreview}\n`;
+      }
+      contextParts.push(unmarkedSection);
+    }
+  }
+
+  // Merge all context parts
+  if (contextParts.length > 0) {
+    additionalContext = contextParts.join('\n\n---\n\n');
+  }
+
+  // Handle case with no context at all
+  if (!message && !additionalContext) {
     if (sessionType !== 'startup') {
-      console.error(`⚠ No ledger found. Run /continuity_ledger to track session state.`);
-      message = `[${sessionType}] No ledger found. Consider running /continuity_ledger to track session state.`;
+      console.error(`⚠ No ledger or claude-mem context found.`);
+      message = `[${sessionType}] No context found. Run /continuity_ledger to track session state.`;
     }
-    // For startup without ledger, stay silent (normal case)
+    // For startup without any context, stay silent (normal case for new projects)
   }
 
   // Output with proper format per Claude Code docs
@@ -286,7 +373,7 @@ async function main() {
 
   if (message) {
     output.message = message;
-    output.systemMessage = message;  // Try both fields for visibility
+    output.systemMessage = message;
   }
 
   if (additionalContext) {

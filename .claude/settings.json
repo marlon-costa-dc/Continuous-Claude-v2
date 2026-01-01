@@ -4,6 +4,43 @@
     "command": "$HOME/.claude/scripts/status.sh"
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/pre-tool-use-safety.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/flock-validator.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/pre-tool-use-safety.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "TodoWrite",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/todowrite-validator.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "PreCompact": [
       {
         "hooks": [
@@ -24,11 +61,11 @@
         ]
       },
       {
-        "matcher": "resume|compact|clear",
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/hooks/session-start-continuity.sh"
+            "command": "$HOME/.claude/hooks/session-start-continuity.sh",
+            "timeout": 20
           }
         ]
       }
