@@ -27,10 +27,10 @@ If thoughts/ doesn't exist, tell the user to run `init-project.sh` and stop.
 # 1. Check if repomix is available
 which repomix || ls ~/bin/repomix 2>/dev/null
 
-# 2. Get tree overview
-repomix --output-show-tree --style markdown
+# 2. Get tree overview with token counts
+repomix --token-count-tree --style markdown
 
-# 3. Get compressed code structure (~70% token reduction)
+# 3. Get compressed code structure (~50% token reduction)
 repomix --compress --style xml
 
 # 4. Filter to specific directories if needed

@@ -17,11 +17,14 @@ Token-efficient codebase exploration using Repomix CLI and MCP. Replaces RepoPro
 
 ### Overview
 ```bash
-# Full tree + structure
-repomix --output-show-tree --style markdown
+# Full tree with token counts
+repomix --token-count-tree --style markdown
 
 # Token-efficient (compressed signatures ~70% reduction)
 repomix --compress --style xml
+
+# Both: tree + compression
+repomix --token-count-tree --compress --style xml
 ```
 
 ### Filtered Exploration
@@ -43,7 +46,7 @@ repomix --include "src/" --output context.md
 
 ## Workflow
 
-1. **Get Overview**: `repomix --output-show-tree`
+1. **Get Overview**: `repomix --token-count-tree`
 2. **Find Relevant**: `repomix --include "pattern" --compress`
 3. **Deep Dive**: Use Read tool for specific files
 4. **Export**: `repomix --output context.md`
@@ -68,4 +71,4 @@ Create codebase-map at: `thoughts/handoffs/<session>/codebase-map.md`
 
 - Requires Repomix: `~/bin/repomix` or `node ~/repomix/bin/repomix.cjs`
 - Alternative: `~/bin/code2prompt` (Rust)
-- ~70% token reduction with --compress (Tree-sitter extraction)
+- ~50% token reduction with --compress (Tree-sitter extraction)

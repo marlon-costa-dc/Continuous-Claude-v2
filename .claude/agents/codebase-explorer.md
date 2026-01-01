@@ -23,11 +23,14 @@ If neither available, use native tools (Glob + Grep + Read).
 ## Step 2: Get Overview
 
 ```bash
-# Full tree with structure (token-efficient)
-repomix --output-show-tree --style markdown
+# Full tree with token counts (token-efficient)
+repomix --token-count-tree --style markdown
 
 # Or just compressed signatures
 repomix --compress --style xml
+
+# Both: tree + compression
+repomix --token-count-tree --compress --style xml
 ```
 
 ## Step 3: Targeted Exploration
@@ -127,4 +130,4 @@ code2prompt . --output context.md
 
 - Paths: `~/bin/repomix`, `~/bin/code2prompt`
 - Config: `repomix.config.json` in project root for defaults
-- ~70% token reduction with --compress
+- ~50% token reduction with --compress
