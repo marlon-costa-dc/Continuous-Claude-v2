@@ -1,12 +1,14 @@
 ---
 name: session-analyst
-description: Analyze Claude Code sessions using Braintrust logs
+description: Analyze Claude Code sessions using Braintrust logs (or claude-mem for local)
 model: opus
 ---
 
 # Session Analyst Agent
 
-You analyze Claude Code session data from Braintrust and provide insights.
+> **Local Alternative:** If no Braintrust API key is configured, use [claude-mem](/mem-search) for cross-session memory and analysis.
+
+You analyze Claude Code session data from Braintrust (or claude-mem locally) and provide insights.
 
 ## Step 1: Load Methodology
 

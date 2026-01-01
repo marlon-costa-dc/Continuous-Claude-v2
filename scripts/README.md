@@ -2,6 +2,8 @@
 
 **Purpose:** Agent-agnostic, reusable Python scripts with CLI arguments for MCP tool orchestration.
 
+> **Runs 100% Offline** - All scripts have local alternatives that work without API keys.
+
 ---
 
 ## What Are Scripts?
@@ -25,6 +27,12 @@
 - Web scraping pattern
 - CLI: `--url` (required)
 - Requires: `FIRECRAWL_API_KEY`
+- **Local Alternative:** `web_scrape_local.py` (uses trafilatura, no API key)
+
+### web_scrape_local.py (NEW)
+- Local web scraping using trafilatura
+- CLI: `<url>` (positional), `--format`, `--links`, `--images`
+- **No API key required**
 
 ### multi_tool_pipeline.py
 - Multi-tool chaining pattern (git analysis)
@@ -32,7 +40,14 @@
 - Works without API keys (uses git server)
 
 ### Other scripts
-See `ls scripts/` for all available workflows (perplexity, github, nia, etc.)
+See `ls scripts/` for all available workflows. **All paid services have local alternatives:**
+
+| Script | Paid Service | Local Alternative |
+|--------|--------------|-------------------|
+| `perplexity_search.py` | Perplexity API | WebSearch builtin |
+| `firecrawl_scrape.py` | Firecrawl API | `web_scrape_local.py` |
+| `morph_search.py` | Morph API | Grep builtin |
+| `nia_docs.py` | Nia API | Context7 MCP |
 
 ---
 

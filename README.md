@@ -113,16 +113,19 @@ Session continuity, token-efficient MCP execution, and agentic workflows for Cla
                                      │
                                      ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        EXTERNAL SERVICES (Optional)                         │
+│                   RUNS 100% OFFLINE - Local Alternatives                    │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
-│  │Braintrust│  │Perplexity│  │ Firecrawl│  │   Morph  │  │   Nia    │      │
-│  │ Tracing  │  │  Search  │  │  Scrape  │  │ WarpGrep │  │   Docs   │      │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └──────────┘      │
+│  Paid Service      Local Alternative       Command/Tool                     │
+│  ────────────      ─────────────────       ────────────                     │
+│  Braintrust    →   claude-mem              MCP plugin (cross-session mem)   │
+│  RepoPrompt    →   repomix                 repomix --style markdown         │
+│  Perplexity    →   WebSearch               WebSearch(query="...") builtin   │
+│  Firecrawl     →   trafilatura             scripts/web_scrape_local.py      │
+│  Morph         →   ripgrep                 Grep(pattern="...") builtin      │
+│  Nia           →   Context7                mcp__context7__get-library-docs  │
 │                                                                             │
-│  Local-only: git, ast-grep, qlty                                           │
-│  License required: repoprompt (Pro for MCP tools)                          │
+│  Local-only (no API key): git, ast-grep, qlty, repomix                     │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -390,14 +393,25 @@ This creates:
 
 ### What's Optional?
 
-All external services are optional. Without API keys:
-- **Continuity system**: Works (no external deps)
-- **TDD workflow**: Works (no external deps)
-- **Session tracing**: Disabled (needs BRAINTRUST_API_KEY)
-- **Web search**: Disabled (needs PERPLEXITY_API_KEY)
-- **Code search**: Falls back to grep (MORPH_API_KEY speeds it up)
+**Everything runs 100% offline.** All paid services have free local alternatives:
 
-See `.env.example` for the full list of optional services.
+| Feature | Paid Service | Local Alternative | Status |
+|---------|--------------|-------------------|--------|
+| Session tracing | Braintrust | claude-mem | ✅ Full functionality |
+| Web search | Perplexity | WebSearch builtin | ✅ Full functionality |
+| Web scraping | Firecrawl | trafilatura | ✅ Full functionality |
+| Code search | Morph | Grep (ripgrep) | ✅ Full functionality |
+| Library docs | Nia | Context7 MCP | ✅ Full functionality |
+| Codebase maps | RepoPrompt | repomix | ✅ Full functionality |
+
+**Zero API keys required** for core features:
+- ✅ Continuity system (ledgers, handoffs)
+- ✅ TDD workflow
+- ✅ Hooks and agents
+- ✅ Cross-session memory (claude-mem)
+- ✅ Code quality (qlty, ast-grep)
+
+See `.env.example` for optional API keys that enhance (but don't enable) features.
 
 ---
 
@@ -1009,6 +1023,8 @@ This is why `/commit` matters - it's not just git, it's building Claude's memory
 
 ## Braintrust Session Tracing (Optional)
 
+> **Local Alternative:** [claude-mem](#cross-session-memory-claude-mem) provides full cross-session memory without API keys. Braintrust adds cloud-based analytics if desired.
+
 Track every session with Braintrust for learning from past work.
 
 ### What It Provides
@@ -1242,6 +1258,56 @@ This closes the loop: **sessions → learnings → rules → better sessions**.
 
 ---
 
+## Cross-Session Memory (claude-mem)
+
+**Local alternative to Braintrust** - Full cross-session memory with zero API keys.
+
+### What It Provides
+
+- **Persistent memory** across sessions via SQLite + Chroma (vector search)
+- **Automatic capture** of tool observations, decisions, and session summaries
+- **Semantic search** across all past work
+- **MCP integration** for querying from Claude
+
+### Quick Start
+
+```bash
+# Install the plugin (one-time)
+claude plugin marketplace add thedotmack/claude-mem
+claude plugin install claude-mem
+
+# Start the worker (runs on port 37777)
+systemctl --user start claude-mem-worker
+```
+
+### Usage
+
+**Session start (load recent context):**
+```python
+mcp__plugin_claude-mem_claude-mem-search__get_recent_context(project="my-project")
+```
+
+**Search past work:**
+```python
+mcp__plugin_claude-mem_claude-mem-search__search(query="authentication bug", type="observations")
+```
+
+**Query decisions:**
+```python
+mcp__plugin_claude-mem_claude-mem-search__decisions(query="database architecture")
+```
+
+### Data Location
+
+All data stays local:
+- Database: `~/.claude-mem/claude-mem.db`
+- Vector DB: `~/.claude-mem/chroma/`
+- Logs: `~/.claude-mem/logs/`
+
+See [CLAUDE.md](CLAUDE.md#cross-session-memory-claude-mem) for complete documentation.
+
+---
+
 ## Artifact Index
 
 A local SQLite database that indexes handoffs and plans for fast search.
@@ -1351,23 +1417,28 @@ src/runtime/         # MCP execution runtime
 
 ## Environment Variables
 
-Add to `.env`:
+**All API keys are optional.** Add to `.env` only if you want enhanced features:
 
 ```bash
-# Required for paid services
-GITHUB_PERSONAL_ACCESS_TOKEN="ghp_..."
-PERPLEXITY_API_KEY="pplx-..."
-FIRECRAWL_API_KEY="fc-..."
-MORPH_API_KEY="sk-..."
-NIA_API_KEY="nk_..."
+# OPTIONAL - All have local alternatives (see "What's Optional?" section)
+GITHUB_PERSONAL_ACCESS_TOKEN="ghp_..."  # GitHub API (gh CLI works without)
+PERPLEXITY_API_KEY="pplx-..."           # Web search → use WebSearch builtin
+FIRECRAWL_API_KEY="fc-..."              # Web scraping → use trafilatura
+MORPH_API_KEY="sk-..."                  # Code search → use Grep (ripgrep)
+NIA_API_KEY="nk_..."                    # Library docs → use Context7 MCP
+BRAINTRUST_API_KEY="sk-..."             # Session tracing → use claude-mem
 ```
 
-Services without API keys still work:
+**Always available (no API key, no license):**
 - `git` - local git operations
-- `ast-grep` - structural code search
+- `ast-grep` - structural code search (MCP server included)
 - `qlty` - code quality (auto-installed by `install-global.sh`)
+- `claude-mem` - cross-session memory (plugin included)
+- `repomix` - codebase maps (open source, bundled)
+- `trafilatura` - web scraping (Python library)
+- `Context7` - library documentation (MCP server)
 
-License-based (no API key, requires purchase):
+**License-based (no API key, optional purchase):**
 - `repoprompt` - codebase maps (Free tier: basic features; Pro: MCP tools, CodeMaps)
 
 ---
@@ -1413,13 +1484,20 @@ License-based (no API key, requires purchase):
 - **[yoloshii/mcp-code-execution-enhanced](https://github.com/yoloshii/mcp-code-execution-enhanced)** - Enhanced MCP execution
 - **[HumanLayer](https://github.com/humanlayer/humanlayer)** - Agent patterns
 
-### Tools & Services
-- **[Braintrust](https://braintrust.dev)** - LLM evaluation, logging, and session tracing
+### Tools & Services (Local-First)
+- **[claude-mem](https://github.com/thedotmack/claude-mem)** - Cross-session memory (SQLite + Chroma, 100% local)
+- **[repomix](https://github.com/yamadashy/repomix)** - Codebase packing with Tree-sitter compression
+- **[trafilatura](https://github.com/adbar/trafilatura)** - Web content extraction (Firecrawl alternative)
+- **[Context7](https://github.com/upstash/context7)** - Library documentation MCP server
 - **[qlty](https://github.com/qltysh/qlty)** - Universal code quality CLI (70+ linters)
 - **[ast-grep](https://github.com/ast-grep/ast-grep)** - AST-based code search and refactoring
+
+### Tools & Services (Optional Cloud)
+- **[Braintrust](https://braintrust.dev)** - LLM evaluation, logging, and session tracing
 - **[Nia](https://trynia.ai)** - Library documentation search
 - **[Morph](https://www.morphllm.com)** - WarpGrep fast code search
 - **[Firecrawl](https://www.firecrawl.dev)** - Web scraping API
+- **[Perplexity](https://perplexity.ai)** - AI-powered web search
 - **[RepoPrompt](https://repoprompt.com)** - Token-efficient codebase maps (Pro license for MCP tools)
 
 ---

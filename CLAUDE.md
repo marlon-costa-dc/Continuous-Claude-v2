@@ -6,6 +6,35 @@
 
 **Dual-Mode MCP pattern**: Reusable scripts (PREFERRED, 99.6% reduction) with CLI arguments, OR direct script writing (98.7% reduction) for novel tasks. Progressive disclosure via filesystem. Multi-transport support (stdio + SSE + HTTP).
 
+## Quick Start - Essential Tools
+
+### Codebase Exploration (Repomix)
+```bash
+# Overview with token counts
+repomix --token-count-tree --style markdown
+
+# Compressed code structure (~50% token reduction)
+repomix --compress --style xml
+
+# Filter specific directories
+repomix --include "src/**/*.py" --compress
+```
+
+### Cross-Session Memory (claude-mem)
+```python
+# Auto-loads on SessionStart (see hooks)
+# Manual search:
+mcp__plugin_claude-mem_claude-mem-search__get_recent_context(project="my-project", limit=30)
+mcp__plugin_claude-mem_claude-mem-search__search(query="auth", format="index")
+mcp__plugin_claude-mem_claude-mem-search__decisions(query="architecture")
+```
+
+### Skills and Agents
+- `/codebase-explorer` - Token-efficient codebase exploration
+- `/onboard` - Analyze brownfield codebase
+- `/mem-search` - Search cross-session memory
+- `Task(subagent_type="codebase-explorer")` - Spawn exploration agent
+
 ## Execution Modes
 
 ### PRIMARY: Scripts-Based Execution (>2 tools, complex logic)
@@ -289,7 +318,7 @@ All external services have local alternatives. This project can run 100% offline
 | Paid Service | Local Alternative | Command/Tool |
 |--------------|-------------------|--------------|
 | **Braintrust** | claude-mem | MCP tools (see above) |
-| **RepoPrompt** | repomix | `repomix --style markdown` |
+| **RepoPrompt** | Repomix | `repomix --compress --style xml` (~50% token reduction) |
 | **Perplexity** | WebSearch | `WebSearch(query="...")` builtin |
 | **Firecrawl** | trafilatura | `uv run python scripts/web_scrape_local.py <url>` |
 | **Morph** | ripgrep | `Grep(pattern="...", path="...")` builtin |

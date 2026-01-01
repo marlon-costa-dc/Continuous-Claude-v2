@@ -2,6 +2,8 @@
 
 You've been given this repository to understand, extend, or help implement. Here's what you need to know.
 
+> **Runs 100% Offline** - All external services have local alternatives. No API keys required for core functionality.
+
 ---
 
 ## What This Is
@@ -76,14 +78,17 @@ thoughts/             # Research, plans, handoffs (gitignored)
 - `/research` - Document codebase findings
 - `/recall-reasoning` - Search past decisions
 
-### MCP Tools
-- `/repoprompt` - Codemaps for token-efficient exploration
-- `/morph-search` - Fast codebase search (20x grep)
-- `/nia-docs` - Library documentation lookup
-- `/perplexity-search` - Web research
-- `/firecrawl-scrape` - Web scraping
+### MCP Tools (All Have Local Alternatives)
+- `/repoprompt` - Codemaps for token-efficient exploration → **Local: repomix**
+- `/morph-search` - Fast codebase search (20x grep) → **Local: Grep builtin**
+- `/nia-docs` - Library documentation lookup → **Local: Context7 MCP**
+- `/perplexity-search` - Web research → **Local: WebSearch builtin**
+- `/firecrawl-scrape` - Web scraping → **Local: trafilatura**
 - `/github-search` - GitHub code/repo search
-- `/ast-grep-find` - AST-based code patterns
+- `/ast-grep-find` - AST-based code patterns (always local)
+
+### Cross-Session Memory
+- `/mem-search` - Search past sessions via claude-mem (100% local)
 
 ---
 

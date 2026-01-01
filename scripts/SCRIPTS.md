@@ -2,6 +2,8 @@
 
 **Anthropic's Vision:** Agents build a toolbox of reusable capabilities that evolve over time.
 
+> **Runs 100% Offline** - All external services have local alternatives. No API keys required.
+
 > **Claude Code Optimized:** This framework is designed for [Claude Code](https://docs.claude.com/en/docs/claude-code) (v2.0.20+). Claude Code's filesystem discovery and CLI-based execution enable the 99.6% token reduction. Other AI agents can use the core runtime but may not achieve the same efficiency.
 
 ## Philosophy
@@ -104,12 +106,14 @@ if __name__ == "__main__":
 
 ## Current Scripts Library
 
-| Category | Script | CLI Arguments |
-|----------|--------|---------------|
-| **Web** | firecrawl_scrape.py | `--url` (required) |
-| **Pipeline** | multi_tool_pipeline.py | `--repo-path` (default: "."), `--max-commits` (default: 10) |
-| **Search** | perplexity_search.py | `--query` (required) |
-| **Docs** | nia_docs.py | `--package`, `--query` |
+| Category | Script | CLI Arguments | Local Alternative |
+|----------|--------|---------------|-------------------|
+| **Web** | firecrawl_scrape.py | `--url` (required) | web_scrape_local.py |
+| **Web (Local)** | web_scrape_local.py | `<url>` (positional) | ✅ No API key |
+| **Pipeline** | multi_tool_pipeline.py | `--repo-path`, `--max-commits` | ✅ No API key |
+| **Search** | perplexity_search.py | `--query` (required) | WebSearch builtin |
+| **Docs** | nia_docs.py | `--package`, `--query` | Context7 MCP |
+| **Code Search** | morph_search.py | `--query`, `--path` | Grep builtin |
 
 ## Creating New Skills
 
