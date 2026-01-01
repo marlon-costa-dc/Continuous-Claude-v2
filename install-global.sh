@@ -86,6 +86,48 @@ elif command -v qlty &> /dev/null || [ -f "$HOME/.qlty/bin/qlty" ]; then
     echo ""
 fi
 
+# Install ast-grep if not present (required for AST-based refactoring)
+if ! command -v sg &> /dev/null && ! command -v ast-grep &> /dev/null; then
+    echo "Installing ast-grep (AST-based code search/refactoring)..."
+    if command -v cargo &> /dev/null; then
+        cargo install ast-grep --locked --quiet 2>/dev/null || {
+            echo "⚠️  Could not install ast-grep via cargo. Install manually:"
+            echo "   cargo install ast-grep --locked"
+            echo "   OR: npm install -g @ast-grep/cli"
+        }
+    elif command -v npm &> /dev/null; then
+        npm install -g @ast-grep/cli --silent 2>/dev/null || {
+            echo "⚠️  Could not install ast-grep via npm. Install manually."
+        }
+    else
+        echo "⚠️  Neither cargo nor npm found. Install ast-grep manually:"
+        echo "   cargo install ast-grep --locked"
+        echo "   OR: npm install -g @ast-grep/cli"
+    fi
+    echo "✓ ast-grep installed (commands: sg, ast-grep)"
+    echo ""
+elif command -v sg &> /dev/null || command -v ast-grep &> /dev/null; then
+    echo "✓ ast-grep already installed"
+    echo ""
+fi
+
+# Install repomix if not present (required for codebase exploration)
+if ! command -v repomix &> /dev/null; then
+    echo "Installing repomix (token-efficient codebase packing)..."
+    if command -v npm &> /dev/null; then
+        npm install -g repomix --silent 2>/dev/null || {
+            echo "⚠️  Could not install repomix. Install manually: npm install -g repomix"
+        }
+        echo "✓ repomix installed"
+    else
+        echo "⚠️  npm not found. Install repomix manually: npm install -g repomix"
+    fi
+    echo ""
+elif command -v repomix &> /dev/null; then
+    echo "✓ repomix already installed"
+    echo ""
+fi
+
 # Install MCP runtime package globally (makes mcp-exec, mcp-generate available everywhere)
 echo "Installing MCP runtime package globally..."
 cd "$SCRIPT_DIR"
