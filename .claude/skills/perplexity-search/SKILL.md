@@ -109,3 +109,19 @@ uv run python scripts/perplexity_search.py \
 ## API Key Required
 
 Requires `PERPLEXITY_API_KEY` in environment or `~/.claude/.env`.
+
+## Local Fallback (No API Key)
+
+If `PERPLEXITY_API_KEY` is not available, use **WebSearch** builtin tool instead:
+
+```
+# Claude Code has built-in WebSearch - no API key needed
+WebSearch(query="your search query here")
+```
+
+This provides:
+- Web search results with snippets
+- No cost, no API key required
+- Slightly less AI synthesis than Perplexity
+
+Choose Perplexity for deep research; use WebSearch for quick lookups.

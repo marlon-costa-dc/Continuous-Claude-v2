@@ -62,3 +62,23 @@ uv run python -m runtime.harness scripts/nia_docs.py \
 ```
 
 Requires `NIA_API_KEY` in environment or `nia` server in mcp_config.json.
+
+## Local Fallback (No API Key)
+
+If `NIA_API_KEY` is not available, use **Context7 MCP** instead:
+
+```python
+# First resolve the library ID
+mcp__context7__resolve-library-id(libraryName="fastapi")
+
+# Then fetch docs with the resolved ID
+mcp__context7__get-library-docs(context7CompatibleLibraryID="/pypi/fastapi", topic="dependency injection")
+```
+
+This provides:
+- Documentation from 3000+ libraries
+- Semantic search within library docs
+- Code examples
+- No cost, no API key required
+
+Nia has broader indexed sources; Context7 covers major libraries well.

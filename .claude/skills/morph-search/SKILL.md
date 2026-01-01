@@ -65,3 +65,23 @@ uv run python -m runtime.harness scripts/morph_search.py \
 ## MCP Server Required
 
 Requires `morph` server in mcp_config.json with `MORPH_API_KEY`.
+
+## Local Fallback (No API Key)
+
+If `MORPH_API_KEY` is not available, use **Grep tool** (ripgrep) instead:
+
+```
+# Claude Code has built-in Grep - powered by ripgrep, no API key needed
+Grep(pattern="authentication", path="./src")
+
+# With glob filtering
+Grep(pattern="def.*login", glob="*.py")
+```
+
+This provides:
+- ripgrep-powered search (very fast)
+- Regex support
+- Glob and type filtering
+- No cost, no API key required
+
+Morph is ~20x faster on very large codebases; Grep is sufficient for most projects.

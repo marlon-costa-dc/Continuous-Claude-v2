@@ -1,4 +1,4 @@
 #!/bin/bash
 set -e
-cd ~/.claude/hooks
-cat | node dist/pre-compact-continuity.mjs
+source "$(dirname "${BASH_SOURCE[0]}")/utils.sh"
+run_hook "pre-compact-continuity"

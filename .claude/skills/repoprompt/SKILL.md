@@ -202,3 +202,31 @@ uv run python -m runtime.harness scripts/repoprompt_async.py --action kill
 ## Note
 
 Requires RepoPrompt app running with MCP Server enabled.
+
+## Local Fallback: repomix (Linux/Cross-platform)
+
+RepoPrompt is macOS-only. On Linux, use **repomix** instead:
+
+```bash
+# Generate codebase context (markdown format, tree-sitter compression)
+repomix --style markdown --compress
+
+# Specific directory
+repomix ./src --style markdown
+
+# Output to file
+repomix . --output codebase.md
+```
+
+Or via MCP (configured in mcp_config.json as `repomix`):
+
+```python
+# MCP tool call
+mcp__repomix__pack_codebase(path=".", style="markdown", compress=true)
+```
+
+repomix provides:
+- Tree-sitter based compression (~70% token reduction)
+- Multiple output formats (markdown, xml, plain)
+- Cross-platform support (Node.js based)
+- No subscription required

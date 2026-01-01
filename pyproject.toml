@@ -14,6 +14,7 @@ dependencies = [
     "requests>=2.32.5",
     "autoevals>=0.0.90",
     "openai>=1.0.0",
+    "trafilatura>=2.0.0",  # Local web scraping (Firecrawl alternative)
 ]
 
 [project.optional-dependencies]

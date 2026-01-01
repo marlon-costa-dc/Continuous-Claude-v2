@@ -41,3 +41,23 @@ uv run python -m runtime.harness scripts/firecrawl_scrape.py \
 ## MCP Server Required
 
 Requires `firecrawl` server in mcp_config.json with FIRECRAWL_API_KEY.
+
+## Local Fallback (No API Key)
+
+If `FIRECRAWL_API_KEY` is not available, use **trafilatura** instead:
+
+```bash
+# Local web scraping via trafilatura (no API key needed)
+uv run python scripts/web_scrape_local.py "https://example.com"
+
+# With format options
+uv run python scripts/web_scrape_local.py --url "https://docs.python.org" --format markdown
+```
+
+This provides:
+- High-quality content extraction
+- Boilerplate removal
+- Markdown/text/XML output formats
+- No cost, no API key required
+
+For complex JS-heavy sites, Firecrawl may work better; trafilatura handles most static pages well.
