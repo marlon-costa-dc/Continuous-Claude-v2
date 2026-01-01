@@ -1,14 +1,10 @@
----
-globs: ["**/*"]
----
-
 # Memory Search Rule
 
 When you need to recall past decisions, changes, or context from previous sessions:
 
 ## Before Re-Implementing Solutions
 
-1. **First**: Use `mcp__plugin_claude-mem_mcp-search__search` with index format
+1. **First**: Use `mcp__plugin_claude-mem_claude-mem-search__search` with index format
 2. **Then**: Review IDs and call `get_observations` for relevant details
 3. **Consider**: Timeline for chronological context
 
