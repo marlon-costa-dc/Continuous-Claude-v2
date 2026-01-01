@@ -67,12 +67,6 @@
       "args": ["-c", "exec node \"$HOME/repomix/bin/repomix.cjs\" --mcp"],
       "description": "Codebase packing with Tree-sitter compression (~50% token reduction)"
     },
-    "claude-mem": {
-      "type": "stdio",
-      "command": "bash",
-      "args": ["-c", "exec node \"$HOME/.claude/plugins/marketplaces/thedotmack/claude-mem-search/dist/index.js\""],
-      "description": "Cross-session memory via SQLite+Chroma - replaces Braintrust learnings"
-    },
     "qlty": {
       "type": "stdio",
       "command": "python",

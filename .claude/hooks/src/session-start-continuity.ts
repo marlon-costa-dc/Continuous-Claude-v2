@@ -86,6 +86,8 @@ interface HandoffSummary {
   status: string;
   summary: string;
   isAutoHandoff: boolean;
+  fullPath: string;
+  isPending: boolean;  // Not yet resumed
 }
 
 /**
@@ -178,8 +180,64 @@ function getLatestHandoff(handoffDir: string): HandoffSummary | null {
     taskNumber,
     status,
     summary,
-    isAutoHandoff
+    isAutoHandoff,
+    fullPath: path.join(handoffDir, latestFile),
+    isPending: status !== 'success'  // Pending if not completed
   };
+}
+
+/**
+ * Get ALL handoffs from the global handoffs directory (not session-specific)
+ * Matches: YYYY-MM-DD-*.md and standard task-*.md patterns
+ */
+function getGlobalHandoffs(projectDir: string): HandoffSummary[] {
+  const handoffsDir = path.join(projectDir, 'thoughts', 'shared', 'handoffs');
+  if (!fs.existsSync(handoffsDir)) return [];
+
+  const handoffs: HandoffSummary[] = [];
+
+  // Get files directly in handoffs dir (YYYY-MM-DD-*.md pattern)
+  const files = fs.readdirSync(handoffsDir);
+
+  for (const file of files) {
+    const filePath = path.join(handoffsDir, file);
+    const stat = fs.statSync(filePath);
+
+    // Skip directories
+    if (stat.isDirectory()) continue;
+
+    // Match YYYY-MM-DD-*.md pattern
+    if (file.match(/^\d{4}-\d{2}-\d{2}-.+\.md$/)) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+
+      // Extract status from frontmatter or content
+      const statusMatch = content.match(/status:\s*(pending|in-progress|complete|blocked)/i);
+      const status = statusMatch ? statusMatch[1].toLowerCase() : 'pending';
+
+      // Extract title/summary from first heading or filename
+      const titleMatch = content.match(/^#\s+(.+)$/m);
+      const summary = titleMatch
+        ? titleMatch[1].substring(0, 150)
+        : file.replace(/^\d{4}-\d{2}-\d{2}-/, '').replace('.md', '');
+
+      handoffs.push({
+        filename: file,
+        taskNumber: file.replace('.md', ''),
+        status,
+        summary,
+        isAutoHandoff: false,
+        fullPath: filePath,
+        isPending: status !== 'complete' && status !== 'success'
+      });
+    }
+  }
+
+  // Sort by modification time (most recent first)
+  return handoffs.sort((a, b) => {
+    const statA = fs.statSync(a.fullPath);
+    const statB = fs.statSync(b.fullPath);
+    return statB.mtime.getTime() - statA.mtime.getTime();
+  });
 }
 
 // Artifact Index precedent query removed - redundant with:
@@ -225,6 +283,24 @@ function getUnmarkedHandoffs(): UnmarkedHandoff[] {
 async function main() {
   const input: SessionStartInput = JSON.parse(await readStdin());
   const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+
+  // Auto-initialize project if not set up
+  const artifactDbPath = path.join(projectDir, '.claude', 'cache', 'artifact-index', 'context.db');
+  if (!fs.existsSync(artifactDbPath)) {
+    const initScript = path.join(process.env.HOME || '', '.claude', 'scripts', 'init-project.sh');
+    if (fs.existsSync(initScript)) {
+      try {
+        execSync(`bash "${initScript}" --quiet`, {
+          cwd: projectDir,
+          timeout: 10000
+        });
+        console.error('✓ Project auto-initialized for Continuous Claude');
+      } catch (e) {
+        // Non-fatal - continue anyway
+        console.error('⚠ Could not auto-initialize project');
+      }
+    }
+  }
 
   // Support both 'source' (per docs) and 'type' (legacy) fields
   const sessionType = input.source || input.type || 'startup';
@@ -352,6 +428,52 @@ async function main() {
       }
       contextParts.push(unmarkedSection);
     }
+  }
+
+  // 5. Global handoffs - detect pending work and auto-resume
+  const globalHandoffs = getGlobalHandoffs(projectDir);
+  const pendingHandoffs = globalHandoffs.filter(h => h.isPending);
+
+  if (pendingHandoffs.length > 0) {
+    // Get the most recent pending handoff
+    const mostRecentPending = pendingHandoffs[0];
+
+    // Read the full content for context
+    const handoffContent = fs.readFileSync(mostRecentPending.fullPath, 'utf-8');
+    const truncatedContent = handoffContent.length > 3000
+      ? handoffContent.substring(0, 3000) + '\n\n[... truncated]'
+      : handoffContent;
+
+    let handoffSection = `## 🚨 PENDING HANDOFFS DETECTED - AUTO-RESUME\n\n`;
+    handoffSection += `**${pendingHandoffs.length} pending handoff(s) found. Most recent:**\n\n`;
+    handoffSection += `**File:** \`${mostRecentPending.fullPath}\`\n`;
+    handoffSection += `**Summary:** ${mostRecentPending.summary}\n`;
+    handoffSection += `**Status:** ${mostRecentPending.status}\n\n`;
+    handoffSection += `### Handoff Content:\n\n${truncatedContent}\n\n`;
+
+    if (pendingHandoffs.length > 1) {
+      handoffSection += `### Other Pending Handoffs:\n`;
+      for (const h of pendingHandoffs.slice(1, 4)) {
+        handoffSection += `- \`${h.filename}\`: ${h.summary}\n`;
+      }
+      handoffSection += '\n';
+    }
+
+    handoffSection += `---\n\n`;
+    handoffSection += `**⚡ ACTION REQUIRED:** Resume work from the handoff above.\n`;
+    handoffSection += `Read the full handoff, understand the context, and continue the work.\n`;
+    handoffSection += `When complete, update the handoff status to \`complete\`.\n`;
+
+    contextParts.push(handoffSection);
+
+    // Update status message to highlight pending handoffs
+    if (message) {
+      message = `🚨 PENDING HANDOFF | ${message}`;
+    } else {
+      message = `🚨 PENDING HANDOFF: ${mostRecentPending.filename}`;
+    }
+
+    console.error(`🚨 Auto-resuming handoff: ${mostRecentPending.filename}`);
   }
 
   // Merge all context parts

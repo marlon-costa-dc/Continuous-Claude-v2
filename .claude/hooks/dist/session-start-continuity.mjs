@@ -106,8 +106,43 @@ function getLatestHandoff(handoffDir) {
     taskNumber,
     status,
     summary,
-    isAutoHandoff
+    isAutoHandoff,
+    fullPath: path.join(handoffDir, latestFile),
+    isPending: status !== "success"
+    // Pending if not completed
   };
+}
+function getGlobalHandoffs(projectDir) {
+  const handoffsDir = path.join(projectDir, "thoughts", "shared", "handoffs");
+  if (!fs.existsSync(handoffsDir)) return [];
+  const handoffs = [];
+  const files = fs.readdirSync(handoffsDir);
+  for (const file of files) {
+    const filePath = path.join(handoffsDir, file);
+    const stat = fs.statSync(filePath);
+    if (stat.isDirectory()) continue;
+    if (file.match(/^\d{4}-\d{2}-\d{2}-.+\.md$/)) {
+      const content = fs.readFileSync(filePath, "utf-8");
+      const statusMatch = content.match(/status:\s*(pending|in-progress|complete|blocked)/i);
+      const status = statusMatch ? statusMatch[1].toLowerCase() : "pending";
+      const titleMatch = content.match(/^#\s+(.+)$/m);
+      const summary = titleMatch ? titleMatch[1].substring(0, 150) : file.replace(/^\d{4}-\d{2}-\d{2}-/, "").replace(".md", "");
+      handoffs.push({
+        filename: file,
+        taskNumber: file.replace(".md", ""),
+        status,
+        summary,
+        isAutoHandoff: false,
+        fullPath: filePath,
+        isPending: status !== "complete" && status !== "success"
+      });
+    }
+  }
+  return handoffs.sort((a, b) => {
+    const statA = fs.statSync(a.fullPath);
+    const statB = fs.statSync(b.fullPath);
+    return statB.mtime.getTime() - statA.mtime.getTime();
+  });
 }
 function getUnmarkedHandoffs() {
   try {
@@ -134,6 +169,21 @@ function getUnmarkedHandoffs() {
 async function main() {
   const input = JSON.parse(await readStdin());
   const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+  const artifactDbPath = path.join(projectDir, ".claude", "cache", "artifact-index", "context.db");
+  if (!fs.existsSync(artifactDbPath)) {
+    const initScript = path.join(process.env.HOME || "", ".claude", "scripts", "init-project.sh");
+    if (fs.existsSync(initScript)) {
+      try {
+        execSync(`bash "${initScript}" --quiet`, {
+          cwd: projectDir,
+          timeout: 1e4
+        });
+        console.error("\u2713 Project auto-initialized for Continuous Claude");
+      } catch (e) {
+        console.error("\u26A0 Could not auto-initialize project");
+      }
+    }
+  }
   const sessionType = input.source || input.type || "startup";
   const projectName = getProjectName(projectDir);
   let claudeMemContext = "";
@@ -231,6 +281,56 @@ ${truncatedHandoff}`);
       }
       contextParts.push(unmarkedSection);
     }
+  }
+  const globalHandoffs = getGlobalHandoffs(projectDir);
+  const pendingHandoffs = globalHandoffs.filter((h) => h.isPending);
+  if (pendingHandoffs.length > 0) {
+    const mostRecentPending = pendingHandoffs[0];
+    const handoffContent = fs.readFileSync(mostRecentPending.fullPath, "utf-8");
+    const truncatedContent = handoffContent.length > 3e3 ? handoffContent.substring(0, 3e3) + "\n\n[... truncated]" : handoffContent;
+    let handoffSection = `## \u{1F6A8} PENDING HANDOFFS DETECTED - AUTO-RESUME
+
+`;
+    handoffSection += `**${pendingHandoffs.length} pending handoff(s) found. Most recent:**
+
+`;
+    handoffSection += `**File:** \`${mostRecentPending.fullPath}\`
+`;
+    handoffSection += `**Summary:** ${mostRecentPending.summary}
+`;
+    handoffSection += `**Status:** ${mostRecentPending.status}
+
+`;
+    handoffSection += `### Handoff Content:
+
+${truncatedContent}
+
+`;
+    if (pendingHandoffs.length > 1) {
+      handoffSection += `### Other Pending Handoffs:
+`;
+      for (const h of pendingHandoffs.slice(1, 4)) {
+        handoffSection += `- \`${h.filename}\`: ${h.summary}
+`;
+      }
+      handoffSection += "\n";
+    }
+    handoffSection += `---
+
+`;
+    handoffSection += `**\u26A1 ACTION REQUIRED:** Resume work from the handoff above.
+`;
+    handoffSection += `Read the full handoff, understand the context, and continue the work.
+`;
+    handoffSection += `When complete, update the handoff status to \`complete\`.
+`;
+    contextParts.push(handoffSection);
+    if (message) {
+      message = `\u{1F6A8} PENDING HANDOFF | ${message}`;
+    } else {
+      message = `\u{1F6A8} PENDING HANDOFF: ${mostRecentPending.filename}`;
+    }
+    console.error(`\u{1F6A8} Auto-resuming handoff: ${mostRecentPending.filename}`);
   }
   if (contextParts.length > 0) {
     additionalContext = contextParts.join("\n\n---\n\n");

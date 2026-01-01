@@ -8,6 +8,7 @@
 # Usage: ./install-global.sh [OPTIONS]
 #   -y, --yes       Skip confirmation prompts
 #   -v, --validate  Only validate components (no install)
+#   -a, --auto      Auto-install ALL missing components (implies -y)
 #   -h, --help      Show this help
 #
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -328,6 +329,43 @@ install_jq() {
     esac
 }
 
+install_trafilatura() {
+    log_step "Installing trafilatura (web scraping - local Firecrawl alternative)..."
+
+    if command -v uv &>/dev/null; then
+        uv pip install trafilatura --quiet 2>/dev/null && return 0
+    fi
+
+    if command -v pip3 &>/dev/null; then
+        pip3 install trafilatura --quiet 2>/dev/null && return 0
+    elif command -v pip &>/dev/null; then
+        pip install trafilatura --quiet 2>/dev/null && return 0
+    fi
+
+    log_warning "No pip/uv found. Install trafilatura manually: pip install trafilatura"
+    return 1
+}
+
+install_claude_mem() {
+    log_step "Installing claude-mem plugin (cross-session memory)..."
+
+    if ! command -v claude &>/dev/null; then
+        log_warning "Claude CLI not found. Install claude-mem manually after installing Claude Code"
+        return 1
+    fi
+
+    # Add from marketplace and install
+    claude plugin marketplace add thedotmack/claude-mem 2>/dev/null || true
+    claude plugin install claude-mem 2>/dev/null || {
+        log_warning "Could not auto-install claude-mem. Install manually:"
+        log_info "  claude plugin marketplace add thedotmack/claude-mem"
+        log_info "  claude plugin install claude-mem"
+        return 1
+    }
+
+    log_success "claude-mem plugin installed"
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Validation Function
 # ─────────────────────────────────────────────────────────────────────────────
@@ -540,6 +578,20 @@ main_install() {
         log_success "jq already installed"
     fi
 
+    # trafilatura (local Firecrawl alternative)
+    if ! python3 -c "import trafilatura" 2>/dev/null; then
+        install_trafilatura || log_warning "trafilatura not installed (optional)"
+    else
+        log_success "trafilatura already installed"
+    fi
+
+    # claude-mem (local Braintrust alternative)
+    if [[ ! -d "$HOME/.claude/plugins/marketplaces/thedotmack/claude-mem-search" ]]; then
+        install_claude_mem || log_warning "claude-mem not installed (optional)"
+    else
+        log_success "claude-mem already installed"
+    fi
+
     # ─────────────────────────────────────────────────────────────────────────
     print_section "Installing MCP Runtime"
     # ─────────────────────────────────────────────────────────────────────────
@@ -591,14 +643,17 @@ main_install() {
 
     # Create a modified mcp_config.json with absolute paths
     if command -v jq &>/dev/null; then
-        # Use jq to update paths
-        jq --arg home "$HOME" --arg script_dir "$SCRIPT_DIR" '
+        # Use jq to update paths for global installation
+        # Note: claude-mem is a PLUGIN, registered via `claude plugin install claude-mem`
+        # It manages its own MCP server registration automatically
+        jq --arg home "$HOME" '
+            # Fix qlty server path (needs absolute path for global install)
             .mcpServers.qlty.command = "python" |
             .mcpServers.qlty.args = [($home + "/.claude/servers/qlty/server.py")] |
-            if .mcpServers.repomix then
-                .mcpServers.repomix.command = "npx" |
-                .mcpServers.repomix.args = ["-y", "repomix", "--mcp"]
-            else . end
+
+            # Fix repomix to use npx (more portable than hardcoded path)
+            .mcpServers.repomix.command = "npx" |
+            .mcpServers.repomix.args = ["-y", "repomix", "--mcp"]
         ' "$SCRIPT_DIR/mcp_config.json" > "$GLOBAL_DIR/mcp_config.json"
     else
         cp "$SCRIPT_DIR/mcp_config.json" "$GLOBAL_DIR/mcp_config.json"
@@ -727,6 +782,7 @@ main_install() {
 
 SKIP_CONFIRM=false
 VALIDATE_ONLY=false
+AUTO_INSTALL=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -738,12 +794,18 @@ while [[ $# -gt 0 ]]; do
             VALIDATE_ONLY=true
             shift
             ;;
+        -a|--auto)
+            AUTO_INSTALL=true
+            SKIP_CONFIRM=true
+            shift
+            ;;
         -h|--help)
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
             echo "  -y, --yes       Skip confirmation prompts"
             echo "  -v, --validate  Only validate components (no install)"
+            echo "  -a, --auto      Auto-install ALL missing components (implies -y)"
             echo "  -h, --help      Show this help"
             exit 0
             ;;
